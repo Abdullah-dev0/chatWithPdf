@@ -6,6 +6,7 @@ import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { createClient as Client } from "@supabase/supabase-js";
+import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { SupabaseVectorStore } from "@langchain/community/vectorstores/supabase";
 
 const f = createUploadthing();
@@ -59,7 +60,14 @@ const onUploadComplete = async ({
 
 		const pageLevelDocs = await loader.load();
 
-		const pagesAmt = pageLevelDocs.length;
+		const textSplitter = new RecursiveCharacterTextSplitter({
+			chunkSize: 1000,
+			chunkOverlap: 200,
+		});
+
+		const splits = await textSplitter.splitDocuments(pageLevelDocs);
+
+		console.log(splits, "these are splits");
 
 		// const { subscriptionPlan } = metadata;
 		// const { isSubscribed } = subscriptionPlan;
@@ -89,7 +97,7 @@ const onUploadComplete = async ({
 			title: "Document title",
 		});
 
-		const vectorStore = await SupabaseVectorStore.fromDocuments(pageLevelDocs, embeddings, {
+		const vectorStore = await SupabaseVectorStore.fromDocuments(splits, embeddings, {
 			client: supabaseClient,
 			tableName: "documents",
 		});

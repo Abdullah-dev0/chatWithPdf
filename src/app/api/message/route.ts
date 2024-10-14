@@ -1,16 +1,14 @@
 import { db } from "@/db";
-import { openai } from "@/lib/openai";
-
 import { SendMessageValidator } from "@/lib/validators/SendMessageValidator";
+import { TaskType } from "@google/generative-ai";
 import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
-
-import { NextRequest } from "next/server";
-
-import { createClient as Client } from "@supabase/supabase-js";
 import { SupabaseVectorStore } from "@langchain/community/vectorstores/supabase";
-import { OpenAIStream, StreamingTextResponse, GoogleGenerativeAIStream } from "ai";
-import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
-import { Content, GenerateContentRequest, GoogleGenerativeAI, TaskType } from "@google/generative-ai";
+import { HumanMessage } from "@langchain/core/messages";
+import { ChatPromptTemplate, MessagesPlaceholder } from "@langchain/core/prompts";
+import { ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
+import { createClient as Client } from "@supabase/supabase-js";
+import { createStuffDocumentsChain } from "langchain/chains/combine_documents";
+import { NextRequest } from "next/server";
 export const POST = async (req: NextRequest) => {
 	// endpoint for asking a question to a pdf file
 
@@ -56,71 +54,55 @@ export const POST = async (req: NextRequest) => {
 	const vectorStore = new SupabaseVectorStore(embeddings, {
 		client: supabaseClient,
 		tableName: "documents",
+		queryName: "match_documents",
 	});
 
-	const results = await vectorStore.similaritySearch(message, 2);
+	const retriever = vectorStore.asRetriever(4);
 
-	const prevMessages = await db.message.findMany({
-		where: {
-			fileId,
-		},
-		orderBy: {
-			createdAt: "asc",
-		},
-		take: 6,
+	const retrievedDocs = await retriever.invoke(message);
+
+	const SYSTEM_TEMPLATE = `Answer the user's questions based on the below context. 
+              If the context doesn't contain any relevant information to the question, don't make something up and just say "I don't know":
+
+              <context>
+{context}
+</context>
+`;
+
+	// const prevMessages = await db.message.findMany({
+	// 	where: {
+	// 		fileId,
+	// 	},
+	// 	orderBy: {
+	// 		createdAt: "asc",
+	// 	},
+	// 	take: 6,
+	// });
+
+	const llm = new ChatGoogleGenerativeAI({
+		model: "gemini-1.5-pro",
+		temperature: 0,
+		maxRetries: 2,
+		apiKey: process.env.OPENAI_API_KEY!,
 	});
 
-	const formattedPrevMessages = prevMessages.map((msg) => ({
-		role: msg.isUserMessage ? ("user" as const) : ("model" as const),
-		content: msg.text,
-	}));
+	const questionAnsweringPrompt = ChatPromptTemplate.fromMessages([
+		["system", SYSTEM_TEMPLATE],
+		new MessagesPlaceholder("messages"),
+	]);
 
-	const genAI = new GoogleGenerativeAI(process.env.OPENAI_API_KEY!);
 
-	const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+	const documentChain = await createStuffDocumentsChain({
+		llm,
+		prompt: questionAnsweringPrompt,
+	});
 
-	// Create an array of contents based on your existing context and conversation
-	const contents: Content[] = [
-		{
-			role: "model",
-			parts: [
-				{
-					text: "Use the following pieces of context (or previous conversaton if needed) to answer the users question in markdown format.",
-				},
-			],
-		},
-		{
-			role: "user",
-			parts: [
-				{
-					text: `Use the following pieces of context (or previous conversation if needed) to answer the user's question in markdown format.\nIf you don't know the answer, just say that you don't know, don't try to make up an answer.
+	const res = await documentChain.invoke({
+		messages: [new HumanMessage(message)],
+		context: retrievedDocs,
+	});
 
-                \n----------------\n
-                
-                PREVIOUS CONVERSATION:
-                ${formattedPrevMessages
-									.map((message) => {
-										return message.role === "user" ? `User: ${message.content}\n` : `Assistant: ${message.content}\n`;
-									})
-									.join("")}
+	console.log(res, "this is the response");
 
-                \n----------------\n
-                
-                CONTEXT:
-                ${results.map((r) => r.pageContent).join("\n\n")}
-                
-                USER INPUT: ${message}`,
-				},
-			],
-		},
-	];
-
-	// Construct the GenerateContentRequest
-	const request: GenerateContentRequest = {
-		contents: contents,
-	};
-
-	const response = await model.generateContentStream(request);
-
-	return new StreamingTextResponse(GoogleGenerativeAIStream({ stream: response.stream }));
+	return new Response(res);
 };

@@ -16,6 +16,7 @@
     "@langchain/community": "^0.3.5",
     "@langchain/core": "^0.3.11",
     "@langchain/google-genai": "^0.1.0",
+    "@langchain/google-vertexai-web": "^0.1.0",
     "@langchain/openai": "^0.3.7",
     "@langchain/pinecone": "^0.1.1",
     "@mantine/hooks": "^7.0.1",
