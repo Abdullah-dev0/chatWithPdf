@@ -56,48 +56,24 @@ const onUploadComplete = async ({
 
 		const blob = await response.blob();
 
-		const loader = new PDFLoader(blob);
-
-		const pageLevelDocs = await loader.load();
-
-		const textSplitter = new RecursiveCharacterTextSplitter({
-			chunkSize: 1000,
-			chunkOverlap: 200,
+		const loader = new PDFLoader(blob, {
+			parsedItemSeparator: "",
 		});
 
-		const splits = await textSplitter.splitDocuments(pageLevelDocs);
-
-		console.log(splits, "these are splits");
-
-		// const { subscriptionPlan } = metadata;
-		// const { isSubscribed } = subscriptionPlan;
-
-		// const isProExceeded = pagesAmt > PLANS.find((plan) => plan.name === "Pro")!.pagesPerPdf;
-		// const isFreeExceeded = pagesAmt > PLANS.find((plan) => plan.name === "Free")!.pagesPerPdf;
-
-		// if ((isSubscribed && isProExceeded) || (!isSubscribed && isFreeExceeded)) {
-		// 	await db.file.update({
-		// 		data: {
-		// 			uploadStatus: "FAILED",
-		// 		},
-		// 		where: {
-		// 			id: createdFile.id,
-		// 		},
-		// 	});
-		// }
+		const pageLevelDocs = await loader.load();
 
 		// vectorize and index entire document
 
 		const supabaseClient = Client(process.env.SUPABASE_URL!, process.env.SUPABASE_PRIVATE_KEY!);
 
 		const embeddings = new GoogleGenerativeAIEmbeddings({
-			apiKey: process.env.OPENAI_API_KEY!,
+			apiKey: process.env.GOOGLE_API!,
 			model: "text-embedding-004", // 768 dimensions
 			taskType: TaskType.RETRIEVAL_DOCUMENT,
 			title: "Document title",
 		});
 
-		const vectorStore = await SupabaseVectorStore.fromDocuments(splits, embeddings, {
+		const vectorStore = await SupabaseVectorStore.fromDocuments(pageLevelDocs, embeddings, {
 			client: supabaseClient,
 			tableName: "documents",
 		});
@@ -133,6 +109,3 @@ export const ourFileRouter = {
 } satisfies FileRouter;
 
 export type OurFileRouter = typeof ourFileRouter;
-function createClient(SUPABASE_URL: string | undefined, SUPABASE_PRIVATE_KEY: string | undefined) {
-	throw new Error("Function not implemented.");
-}

@@ -2,13 +2,15 @@ import { db } from "@/db";
 import { SendMessageValidator } from "@/lib/validators/SendMessageValidator";
 import { TaskType } from "@google/generative-ai";
 import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
-import { SupabaseVectorStore } from "@langchain/community/vectorstores/supabase";
+import { SupabaseHybridSearch } from "@langchain/community/retrievers/supabase";
 import { HumanMessage } from "@langchain/core/messages";
+import { ChatMistralAI } from "@langchain/mistralai";
 import { ChatPromptTemplate, MessagesPlaceholder } from "@langchain/core/prompts";
-import { ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
+import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { createClient as Client } from "@supabase/supabase-js";
 import { createStuffDocumentsChain } from "langchain/chains/combine_documents";
 import { NextRequest } from "next/server";
+import { SupabaseVectorStore } from "@langchain/community/vectorstores/supabase";
 export const POST = async (req: NextRequest) => {
 	// endpoint for asking a question to a pdf file
 
@@ -45,7 +47,7 @@ export const POST = async (req: NextRequest) => {
 
 	// 1: vectorize message
 	const embeddings = new GoogleGenerativeAIEmbeddings({
-		apiKey: process.env.OPENAI_API_KEY!,
+		apiKey: process.env.GOOGLE_API_KEY!,
 		model: "text-embedding-004", // 768 dimensions
 		taskType: TaskType.RETRIEVAL_DOCUMENT,
 		title: "Document title",
@@ -57,30 +59,21 @@ export const POST = async (req: NextRequest) => {
 		queryName: "match_documents",
 	});
 
-	const retriever = vectorStore.asRetriever(4);
+	const retriever = vectorStore.asRetriever();
 
 	const retrievedDocs = await retriever.invoke(message);
 
-	const SYSTEM_TEMPLATE = `Answer the user's questions based on the below context. 
-              If the context doesn't contain any relevant information to the question, don't make something up and just say "I don't know":
+	console.log(retrievedDocs);
 
+	const SYSTEM_TEMPLATE = `Answer the user's questions based on the below context in markdown. 
+              If the context doesn't contain any relevant information to the question, don't make something up and just say "I don't have knowledge about that.":
               <context>
 {context}
 </context>
 `;
 
-	// const prevMessages = await db.message.findMany({
-	// 	where: {
-	// 		fileId,
-	// 	},
-	// 	orderBy: {
-	// 		createdAt: "asc",
-	// 	},
-	// 	take: 6,
-	// });
-
-	const llm = new ChatGoogleGenerativeAI({
-		model: "gemini-1.5-pro",
+	const llm = new ChatMistralAI({
+		model: "mistral-large-latest",
 		temperature: 0,
 		maxRetries: 2,
 		apiKey: process.env.OPENAI_API_KEY!,
@@ -90,7 +83,6 @@ export const POST = async (req: NextRequest) => {
 		["system", SYSTEM_TEMPLATE],
 		new MessagesPlaceholder("messages"),
 	]);
-
 
 	const documentChain = await createStuffDocumentsChain({
 		llm,
@@ -103,6 +95,15 @@ export const POST = async (req: NextRequest) => {
 	});
 
 	console.log(res, "this is the response");
+
+	await db.message.create({
+		data: {
+			text: res,
+			isUserMessage: false,
+			userId,
+			fileId,
+		},
+	});
 
 	return new Response(res);
 };
