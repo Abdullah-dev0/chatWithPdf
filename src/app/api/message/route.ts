@@ -1,19 +1,16 @@
 import { db } from "@/db";
 import { SendMessageValidator } from "@/lib/validators/SendMessageValidator";
-import { TaskType } from "@google/generative-ai";
 import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
-import { SupabaseHybridSearch } from "@langchain/community/retrievers/supabase";
-import { HumanMessage } from "@langchain/core/messages";
-import { ChatMistralAI } from "@langchain/mistralai";
-import { ChatPromptTemplate, MessagesPlaceholder } from "@langchain/core/prompts";
-import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
-import { createClient as Client } from "@supabase/supabase-js";
-import { createStuffDocumentsChain } from "langchain/chains/combine_documents";
-import { NextRequest } from "next/server";
 import { SupabaseVectorStore } from "@langchain/community/vectorstores/supabase";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+import { PromptTemplate } from "@langchain/core/prompts";
+import { RunnableLike, RunnableSequence } from "@langchain/core/runnables";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { MistralAIEmbeddings } from "@langchain/mistralai";
+import { createClient as Client } from "@supabase/supabase-js";
+import { StreamingTextResponse } from "ai";
+import { NextRequest } from "next/server";
 export const POST = async (req: NextRequest) => {
-	// endpoint for asking a question to a pdf file
-
 	const body = await req.json();
 
 	const { getUser } = getKindeServerSession();
@@ -46,11 +43,9 @@ export const POST = async (req: NextRequest) => {
 	const supabaseClient = Client(process.env.SUPABASE_URL!, process.env.SUPABASE_PRIVATE_KEY!);
 
 	// 1: vectorize message
-	const embeddings = new GoogleGenerativeAIEmbeddings({
-		apiKey: process.env.GOOGLE_API_KEY!,
-		model: "text-embedding-004", // 768 dimensions
-		taskType: TaskType.RETRIEVAL_DOCUMENT,
-		title: "Document title",
+	const embeddings = new MistralAIEmbeddings({
+		apiKey: process.env.OPENAI_API_KEY!,
+		model: "mistral-embed", // Default value
 	});
 
 	const vectorStore = new SupabaseVectorStore(embeddings, {
@@ -63,47 +58,79 @@ export const POST = async (req: NextRequest) => {
 
 	const retrievedDocs = await retriever.invoke(message);
 
-	console.log(retrievedDocs);
+	const SYSTEM_TEMPLATE = `
+	You are a knowledgeable AI assistant. Use the provided context to answer the user's question in a medium concise markdown format. If the context is irrelevant or insufficient or you dont know, respond simply with "I don't have knowledge about that." 
+	
+	Context: {context}
+	
+	User Question: {question}
+	
+	Your Answer :
+	`;
+	const language: string = "English";
 
-	const SYSTEM_TEMPLATE = `Answer the user's questions based on the below context in markdown. 
-              If the context doesn't contain any relevant information to the question, don't make something up and just say "I don't have knowledge about that.":
-              <context>
-{context}
-</context>
-`;
+	const translationTemplate = `Given a sentence, translate that sentence into ${language}
+	sentence: {translated_Text}
+	translated sentence:
+	`;
 
-	const llm = new ChatMistralAI({
-		model: "mistral-large-latest",
-		temperature: 0,
+	const systemPrompt = PromptTemplate.fromTemplate(SYSTEM_TEMPLATE);
+
+	const llm = new ChatGoogleGenerativeAI({
+		model: "gemini-pro",
+		temperature: 1,
 		maxRetries: 2,
-		apiKey: process.env.OPENAI_API_KEY!,
+		apiKey: process.env.GOOGLE_API_KEY!,
 	});
 
-	const questionAnsweringPrompt = ChatPromptTemplate.fromMessages([
-		["system", SYSTEM_TEMPLATE],
-		new MessagesPlaceholder("messages"),
-	]);
+	const translationPrompt = PromptTemplate.fromTemplate(translationTemplate);
+	// const systemChain = RunnableSequence.from([systemPrompt, llm, new StringOutputParser()]);
+	// const translationChain = RunnableSequence.from([translationPrompt, llm, new StringOutputParser()]);
 
-	const documentChain = await createStuffDocumentsChain({
+	const chainArray: [RunnableLike<any>, RunnableLike<any>, RunnableLike<any>] = [
+		systemPrompt,
 		llm,
-		prompt: questionAnsweringPrompt,
+		new StringOutputParser(),
+	];
+
+	if (language !== "English") {
+		chainArray.push({ translated_Text: (preresult) => preresult }, translationPrompt, llm, new StringOutputParser());
+	}
+
+	const chain = RunnableSequence.from(chainArray);
+
+	const stream = await chain.stream({
+		context: retrievedDocs.map((doc) => doc.pageContent).join("\n"),
+		question: message,
 	});
 
-	const res = await documentChain.invoke({
-		messages: [new HumanMessage(message)],
-		context: retrievedDocs,
-	});
+	const readableStream = new ReadableStream({
+		async start(controller) {
+			let response = "";
 
-	console.log(res, "this is the response");
+			for await (const chunk of stream) {
+				// Encode and send each chunk to the client
+				controller.enqueue(chunk);
+				console.log(chunk);
+				// Add chunk to the response string (but don't save to DB yet)
+				response += chunk;
+			}
 
-	await db.message.create({
-		data: {
-			text: res,
-			isUserMessage: false,
-			userId,
-			fileId,
+			// Close the stream after all chunks are sent
+			controller.close();
+
+			// Once the entire response is completed, save to the database
+			await db.message.create({
+				data: {
+					text: response, // Save the entire response when streaming completes
+					isUserMessage: false,
+					fileId,
+					userId,
+				},
+			});
 		},
 	});
 
-	return new Response(res);
+	// Return the readable stream as the response to the client
+	return new StreamingTextResponse(readableStream);
 };

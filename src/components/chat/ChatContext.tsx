@@ -133,7 +133,6 @@ export const ChatContextProvider = ({ fileId, children }: Props) => {
 					let updatedPages = old.pages.map((page) => {
 						if (page === old.pages[0]) {
 							let updatedMessages;
-
 							if (!isAiResponseCreated) {
 								updatedMessages = [
 									{

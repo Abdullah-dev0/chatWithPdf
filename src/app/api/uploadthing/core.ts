@@ -8,6 +8,7 @@ import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { createClient as Client } from "@supabase/supabase-js";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { SupabaseVectorStore } from "@langchain/community/vectorstores/supabase";
+import { MistralAIEmbeddings } from "@langchain/mistralai";
 
 const f = createUploadthing();
 
@@ -66,11 +67,9 @@ const onUploadComplete = async ({
 
 		const supabaseClient = Client(process.env.SUPABASE_URL!, process.env.SUPABASE_PRIVATE_KEY!);
 
-		const embeddings = new GoogleGenerativeAIEmbeddings({
-			apiKey: process.env.GOOGLE_API!,
-			model: "text-embedding-004", // 768 dimensions
-			taskType: TaskType.RETRIEVAL_DOCUMENT,
-			title: "Document title",
+		const embeddings = new MistralAIEmbeddings({
+			apiKey: process.env.OPENAI_API_KEY!,
+			model: "mistral-embed", // Default value
 		});
 
 		const vectorStore = await SupabaseVectorStore.fromDocuments(pageLevelDocs, embeddings, {
