@@ -5,8 +5,8 @@ import { SupabaseVectorStore } from "@langchain/community/vectorstores/supabase"
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { RunnableLike, RunnableSequence } from "@langchain/core/runnables";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { MistralAIEmbeddings } from "@langchain/mistralai";
+// import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatMistralAI, MistralAIEmbeddings } from "@langchain/mistralai";
 import { createClient as Client } from "@supabase/supabase-js";
 import { StreamingTextResponse } from "ai";
 import { NextRequest } from "next/server";
@@ -51,6 +51,7 @@ export const POST = async (req: NextRequest) => {
 	const vectorStore = new SupabaseVectorStore(embeddings, {
 		client: supabaseClient,
 		tableName: "documents",
+		filter: { fileId },
 		queryName: "match_documents",
 	});
 
@@ -58,8 +59,10 @@ export const POST = async (req: NextRequest) => {
 
 	const retrievedDocs = await retriever.invoke(message);
 
+	console.log(retrievedDocs.map((doc) => doc.metadata).join("\n"));
+
 	const SYSTEM_TEMPLATE = `
-	You are a knowledgeable AI assistant. Use the provided context to answer the user's question in a medium concise markdown format. If the context is irrelevant or insufficient or you dont know, respond simply with "I don't have knowledge about that." 
+	You are a knowledgeable AI assistant. Use the provided context to answer the user's question in a concise markdown format. If the context is irrelevant or insufficient, respond simply with "I don't have knowledge about that." 
 	
 	Context: {context}
 	
@@ -67,25 +70,24 @@ export const POST = async (req: NextRequest) => {
 	
 	Your Answer :
 	`;
+
+	
 	const language: string = "English";
 
-	const translationTemplate = `Given a sentence, translate that sentence into ${language}
+	const translationTemplate = `Given a sentence, translate that sentence into ${language} , dont add anything else to the sentence.
 	sentence: {translated_Text}
 	translated sentence:
 	`;
 
 	const systemPrompt = PromptTemplate.fromTemplate(SYSTEM_TEMPLATE);
 
-	const llm = new ChatGoogleGenerativeAI({
-		model: "gemini-pro",
-		temperature: 1,
+	const llm = new ChatMistralAI({
+		model: "mistral-large-latest",
+		apiKey: process.env.OPENAI_API_KEY!,
 		maxRetries: 2,
-		apiKey: process.env.GOOGLE_API_KEY!,
 	});
 
 	const translationPrompt = PromptTemplate.fromTemplate(translationTemplate);
-	// const systemChain = RunnableSequence.from([systemPrompt, llm, new StringOutputParser()]);
-	// const translationChain = RunnableSequence.from([translationPrompt, llm, new StringOutputParser()]);
 
 	const chainArray: [RunnableLike<any>, RunnableLike<any>, RunnableLike<any>] = [
 		systemPrompt,

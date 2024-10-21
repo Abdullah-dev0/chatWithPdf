@@ -1,14 +1,11 @@
 import { db } from "@/db";
 import { getUserSubscriptionPlan } from "@/lib/stripe";
-import { TaskType } from "@google/generative-ai";
 import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
-import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
-import { createUploadthing, type FileRouter } from "uploadthing/next";
-import { createClient as Client } from "@supabase/supabase-js";
-import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { SupabaseVectorStore } from "@langchain/community/vectorstores/supabase";
 import { MistralAIEmbeddings } from "@langchain/mistralai";
+import { createClient as Client } from "@supabase/supabase-js";
+import { createUploadthing, type FileRouter } from "uploadthing/next";
 
 const f = createUploadthing();
 
@@ -63,6 +60,13 @@ const onUploadComplete = async ({
 
 		const pageLevelDocs = await loader.load();
 
+		const pageLevelDocsWithId = pageLevelDocs.map((doc, index) => ({
+			...doc,
+			metadata: {
+				fileId: createdFile.id,
+				pageNumber: index,
+			},
+		}));
 		// vectorize and index entire document
 
 		const supabaseClient = Client(process.env.SUPABASE_URL!, process.env.SUPABASE_PRIVATE_KEY!);
@@ -72,7 +76,7 @@ const onUploadComplete = async ({
 			model: "mistral-embed", // Default value
 		});
 
-		const vectorStore = await SupabaseVectorStore.fromDocuments(pageLevelDocs, embeddings, {
+		await SupabaseVectorStore.fromDocuments(pageLevelDocsWithId, embeddings, {
 			client: supabaseClient,
 			tableName: "documents",
 		});
