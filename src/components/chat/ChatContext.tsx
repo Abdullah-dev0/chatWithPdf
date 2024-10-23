@@ -2,7 +2,7 @@ import { ReactNode, createContext, useRef, useState } from "react";
 import { useToast } from "../ui/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import { trpc } from "@/app/_trpc/client";
-import { INFINITE_QUERY_LIMIT } from "@/config/infinite-query";
+import { INFINITE_QUERY_LIMIT } from "@/constant/infinite-query";
 
 type StreamResponse = {
 	addMessage: () => void;
@@ -96,6 +96,7 @@ export const ChatContextProvider = ({ fileId, children }: Props) => {
 				previousMessages: previousMessages?.pages.flatMap((page) => page.messages) ?? [],
 			};
 		},
+		// @ts-ignore
 		onSuccess: async (stream) => {
 			setIsLoading(false);
 

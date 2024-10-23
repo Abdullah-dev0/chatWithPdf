@@ -19,8 +19,9 @@ export const POST = async (req: NextRequest) => {
 	const { id: userId } = user;
 
 	if (!userId) return new Response("Unauthorized", { status: 401 });
-
+	
 	const { fileId, message } = SendMessageValidator.parse(body);
+	const language: string = "English";
 
 	const file = await db.file.findFirst({
 		where: {
@@ -59,20 +60,13 @@ export const POST = async (req: NextRequest) => {
 
 	const retrievedDocs = await retriever.invoke(message);
 
-	console.log(retrievedDocs.map((doc) => doc.metadata).join("\n"));
-
 	const SYSTEM_TEMPLATE = `
-	You are a knowledgeable AI assistant. Use the provided context to answer the user's question in a concise markdown format. If the context is irrelevant or insufficient, respond simply with "I don't have knowledge about that." 
-	
-	Context: {context}
-	
-	User Question: {question}
-	
-	Your Answer :
+	You are a highly advanced AI assistant trained to provide accurate and informative responses. Utilize the provided context to address the user's inquiry in a concise and markdown format. If the context is inadequate or unrelated don't add anything yourself just, respond succinctly with "Insufficient knowledge to provide an accurate answer."
+  Context: {context}
+  User Inquiry: {question}
+  Response:
 	`;
 
-	
-	const language: string = "English";
 
 	const translationTemplate = `Given a sentence, translate that sentence into ${language} , dont add anything else to the sentence.
 	sentence: {translated_Text}

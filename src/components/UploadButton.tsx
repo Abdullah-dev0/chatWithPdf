@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { Dialog, DialogContent, DialogTrigger } from "./ui/dialog";
 import { Button } from "./ui/button";
-
 import Dropzone from "react-dropzone";
 import { Cloud, File, Loader2 } from "lucide-react";
 import { Progress } from "./ui/progress";
@@ -49,12 +48,10 @@ const UploadDropzone = ({ isSubscribed }: { isSubscribed: boolean }) => {
 	return (
 		<Dropzone
 			multiple={false}
+			// @ts-ignore
 			onDrop={async (acceptedFile) => {
 				setIsUploading(true);
-
 				const progressInterval = startSimulatedProgress();
-
-				// handle file uploading
 				const res = await startUpload(acceptedFile);
 
 				if (!res) {

@@ -6,6 +6,7 @@ import { SupabaseVectorStore } from "@langchain/community/vectorstores/supabase"
 import { MistralAIEmbeddings } from "@langchain/mistralai";
 import { createClient as Client } from "@supabase/supabase-js";
 import { createUploadthing, type FileRouter } from "uploadthing/next";
+import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 
 const f = createUploadthing();
 
@@ -49,24 +50,33 @@ const onUploadComplete = async ({
 		},
 	});
 
+	console.log("createdFile", createdFile);
+
 	try {
 		const response = await fetch(file.url);
 
 		const blob = await response.blob();
 
-		const loader = new PDFLoader(blob, {
-			parsedItemSeparator: "",
-		});
+		const loader = new PDFLoader(blob);
 
 		const pageLevelDocs = await loader.load();
 
-		const pageLevelDocsWithId = pageLevelDocs.map((doc, index) => ({
-			...doc,
+		const splitter = new RecursiveCharacterTextSplitter({
+			chunkSize: 750,
+			chunkOverlap: 100,
+			separators: ["\n\n", "\n", ". ", " ", ""],
+		});
+
+		const splitDocs = await splitter.splitDocuments(pageLevelDocs);
+
+		const pageLevelDocsWithId = splitDocs.map((doc, index) => ({
+			pageContent: doc.pageContent,
 			metadata: {
 				fileId: createdFile.id,
 				pageNumber: index,
 			},
 		}));
+
 		// vectorize and index entire document
 
 		const supabaseClient = Client(process.env.SUPABASE_URL!, process.env.SUPABASE_PRIVATE_KEY!);
