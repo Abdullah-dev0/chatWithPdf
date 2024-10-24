@@ -14,7 +14,7 @@ export const POST = async (req: NextRequest) => {
 	const body = await req.json();
 
 	const { getUser } = getKindeServerSession();
-	const user = await getUser();
+	const user = getUser();
 
 	const { id: userId } = user;
 
@@ -43,10 +43,12 @@ export const POST = async (req: NextRequest) => {
 
 	const supabaseClient = Client(process.env.SUPABASE_URL!, process.env.SUPABASE_PRIVATE_KEY!);
 
-	// 1: vectorize message
+	// 1: vectorize message with optimized settings
 	const embeddings = new MistralAIEmbeddings({
 		apiKey: process.env.OPENAI_API_KEY!,
-		model: "mistral-embed", // Default value
+		model: "mistral-embed",
+		batchSize: 8, // Optimize embedding batch size
+		stripNewLines: true, // Clean text for better embeddings
 	});
 
 	const vectorStore = new SupabaseVectorStore(embeddings, {
@@ -60,16 +62,25 @@ export const POST = async (req: NextRequest) => {
 
 	const retrievedDocs = await retriever.invoke(message);
 
+	// Improved system prompt for better context utilization
 	const SYSTEM_TEMPLATE = `
-	You are a highly advanced AI assistant trained to provide accurate and informative responses. Utilize the provided context to address the user's inquiry in a concise and markdown format. If the context is inadequate or unrelated don't add anything yourself just, respond succinctly with "Insufficient knowledge to provide an accurate answer."
-  Context: {context}
-  User Inquiry: {question}
-  Response:
-	`;
+	You are a highly advanced AI assistant trained to provide accurate and informative responses. Analyze the following context carefully and provide a clear, concise response in markdown format. 
+	
+	Important Instructions:
+	1. Only use information from the provided context
+	2. If context is insufficient, respond with "Insufficient knowledge to provide an accurate answer."
+	3. Keep responses focused and relevant
+	4. Maintain consistent formatting
+	
+	Context: {context}
+	User Inquiry: {question}
+	Response:`;
 
-	const translationTemplate = `Given a sentence, translate that sentence into ${language} , dont add anything else to the sentence.
-	sentence: {translated_Text}
-	translated sentence:
+	// Improved translation template for better accuracy
+	const translationTemplate = `Translate the following text to ${language} while preserving formatting and maintaining technical accuracy. Maintain the original meaning and tone.
+	
+	Original text: {translated_Text}
+	Translated text:
 	`;
 
 	const systemPrompt = PromptTemplate.fromTemplate(SYSTEM_TEMPLATE);
@@ -78,6 +89,8 @@ export const POST = async (req: NextRequest) => {
 		model: "mistral-large-latest",
 		apiKey: process.env.OPENAI_API_KEY!,
 		maxRetries: 2,
+		temperature: 0.3, // Lower temperature for more focused responses
+		maxTokens: 1000, // Limit response length
 	});
 
 	const translationPrompt = PromptTemplate.fromTemplate(translationTemplate);
@@ -95,34 +108,48 @@ export const POST = async (req: NextRequest) => {
 	const chain = RunnableSequence.from(chainArray);
 
 	const stream = await chain.stream({
-		context: retrievedDocs.map((doc) => doc.pageContent).join("\n"),
+		context: retrievedDocs.map((doc) => doc.pageContent).join("\n\n"),
 		question: message,
 	});
 
 	const readableStream = new ReadableStream({
 		async start(controller) {
 			let response = "";
+			let chunkCount = 0;
 
-			for await (const chunk of stream) {
-				// Encode and send each chunk to the client
-				controller.enqueue(chunk);
-				console.log(chunk);
-				// Add chunk to the response string (but don't save to DB yet)
-				response += chunk;
+			try {
+				for await (const chunk of stream) {
+					// Add rate limiting for very long streams
+					if (chunkCount++ % 50 === 0) {
+						await new Promise((resolve) => setTimeout(resolve, 1)); // Micro-delay every 50 chunks
+					}
+
+					// Encode and send each chunk to the client
+					controller.enqueue(chunk);
+					console.log(chunk);
+					response += chunk;
+				}
+
+				// Close the stream after all chunks are sent
+				controller.close();
+
+				// Save to database with error handling
+				await db.message
+					.create({
+						data: {
+							text: response,
+							isUserMessage: false,
+							fileId,
+							userId,
+						},
+					})
+					.catch((error) => {
+						console.error("Failed to save to database:", error);
+					});
+			} catch (error) {
+				console.error("Stream processing error:", error);
+				controller.error(error);
 			}
-
-			// Close the stream after all chunks are sent
-			controller.close();
-
-			// Once the entire response is completed, save to the database
-			await db.message.create({
-				data: {
-					text: response, // Save the entire response when streaming completes
-					isUserMessage: false,
-					fileId,
-					userId,
-				},
-			});
 		},
 	});
 
