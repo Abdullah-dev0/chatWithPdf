@@ -14,12 +14,12 @@ export const POST = async (req: NextRequest) => {
 	const body = await req.json();
 
 	const { getUser } = getKindeServerSession();
-	const user = getUser();
+	const user = await getUser();
 
 	const { id: userId } = user;
 
 	if (!userId) return new Response("Unauthorized", { status: 401 });
-	
+
 	const { fileId, message } = SendMessageValidator.parse(body);
 	const language: string = "English";
 
@@ -66,7 +66,6 @@ export const POST = async (req: NextRequest) => {
   User Inquiry: {question}
   Response:
 	`;
-
 
 	const translationTemplate = `Given a sentence, translate that sentence into ${language} , dont add anything else to the sentence.
 	sentence: {translated_Text}

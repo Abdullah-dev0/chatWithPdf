@@ -50,8 +50,6 @@ const onUploadComplete = async ({
 		},
 	});
 
-	console.log("createdFile", createdFile);
-
 	try {
 		const response = await fetch(file.url);
 
