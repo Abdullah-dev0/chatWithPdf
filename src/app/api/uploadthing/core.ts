@@ -1,12 +1,12 @@
 import { db } from "@/db";
+import { supabaseClient } from "@/lib/database";
 import { getUserSubscriptionPlan } from "@/lib/stripe";
 import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import { SupabaseVectorStore } from "@langchain/community/vectorstores/supabase";
 import { MistralAIEmbeddings } from "@langchain/mistralai";
-import { createClient as Client } from "@supabase/supabase-js";
-import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+import { createUploadthing, type FileRouter } from "uploadthing/next";
 
 const f = createUploadthing();
 
@@ -76,8 +76,6 @@ const onUploadComplete = async ({
 		}));
 
 		// vectorize and index entire document
-
-		const supabaseClient = Client(process.env.SUPABASE_URL!, process.env.SUPABASE_PRIVATE_KEY!);
 
 		const embeddings = new MistralAIEmbeddings({
 			apiKey: process.env.OPENAI_API_KEY!,

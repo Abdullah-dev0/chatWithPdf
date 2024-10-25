@@ -1,15 +1,49 @@
 import { db } from "@/db";
+import { supabaseClient } from "@/lib/database";
+import { embeddings } from "@/lib/embeddings";
 import { SendMessageValidator } from "@/lib/validators/SendMessageValidator";
 import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
 import { SupabaseVectorStore } from "@langchain/community/vectorstores/supabase";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { RunnableLike, RunnableSequence } from "@langchain/core/runnables";
-// import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { ChatMistralAI, MistralAIEmbeddings } from "@langchain/mistralai";
-import { createClient as Client } from "@supabase/supabase-js";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+// import { ChatMistralAI } from "@langchain/mistralai";
 import { StreamingTextResponse } from "ai";
 import { NextRequest } from "next/server";
+const language: string = "English"; // Change this to the language you want to translate to
+
+const llm = new ChatGoogleGenerativeAI({
+	model: "gemini-1.5-pro",
+	apiKey: process.env.GOOGLE_API_KEY!,
+	maxRetries: 2,
+	temperature: 0.3, // Lower temperature for more focused responses
+});
+
+// Improved system prompt for better context utilization
+const SYSTEM_TEMPLATE = `
+'Use the following pieces of context to answer the user's question in markdown format.',
+Important Instructions:
+1. Only use information from the provided context.
+2. If context is insufficient, respond with "Insufficient knowledge to provide an accurate answer. don't try to make up an answer."
+3. Keep responses focused and relevant to the user's question in a concise manner.
+Context: {context}
+User Inquiry: {question}
+Response:
+`;
+
+// Improved translation template for better accuracy
+const translationTemplate = `Act as a Translator and translate the following text to ${language} while maintaining technical accuracy. If the text contains a URL, do not translate the URL itself. Instead, provide a transliteration or explanation to make the link understandable for ${language} speakers.
+
+Original text: {translated_Text}
+
+Translated text:
+`;
+
+const systemPrompt = PromptTemplate.fromTemplate(SYSTEM_TEMPLATE);
+
+const translationPrompt = PromptTemplate.fromTemplate(translationTemplate);
+
 export const POST = async (req: NextRequest) => {
 	const body = await req.json();
 
@@ -21,7 +55,6 @@ export const POST = async (req: NextRequest) => {
 	if (!userId) return new Response("Unauthorized", { status: 401 });
 
 	const { fileId, message } = SendMessageValidator.parse(body);
-	const language: string = "English";
 
 	const file = await db.file.findFirst({
 		where: {
@@ -41,16 +74,6 @@ export const POST = async (req: NextRequest) => {
 		},
 	});
 
-	const supabaseClient = Client(process.env.SUPABASE_URL!, process.env.SUPABASE_PRIVATE_KEY!);
-
-	// 1: vectorize message with optimized settings
-	const embeddings = new MistralAIEmbeddings({
-		apiKey: process.env.OPENAI_API_KEY!,
-		model: "mistral-embed",
-		batchSize: 8, // Optimize embedding batch size
-		stripNewLines: true, // Clean text for better embeddings
-	});
-
 	const vectorStore = new SupabaseVectorStore(embeddings, {
 		client: supabaseClient,
 		tableName: "documents",
@@ -61,39 +84,6 @@ export const POST = async (req: NextRequest) => {
 	const retriever = vectorStore.asRetriever();
 
 	const retrievedDocs = await retriever.invoke(message);
-
-	// Improved system prompt for better context utilization
-	const SYSTEM_TEMPLATE = `
-	You are a highly advanced AI assistant trained to provide accurate and informative responses. Analyze the following context carefully and provide a clear, concise response in markdown format. 
-	
-	Important Instructions:
-	1. Only use information from the provided context
-	2. If context is insufficient, respond with "Insufficient knowledge to provide an accurate answer."
-	3. Keep responses focused and relevant
-	4. Maintain consistent formatting
-	
-	Context: {context}
-	User Inquiry: {question}
-	Response:`;
-
-	// Improved translation template for better accuracy
-	const translationTemplate = `Translate the following text to ${language} while preserving formatting and maintaining technical accuracy. Maintain the original meaning and tone.
-	
-	Original text: {translated_Text}
-	Translated text:
-	`;
-
-	const systemPrompt = PromptTemplate.fromTemplate(SYSTEM_TEMPLATE);
-
-	const llm = new ChatMistralAI({
-		model: "mistral-large-latest",
-		apiKey: process.env.OPENAI_API_KEY!,
-		maxRetries: 2,
-		temperature: 0.3, // Lower temperature for more focused responses
-		maxTokens: 1000, // Limit response length
-	});
-
-	const translationPrompt = PromptTemplate.fromTemplate(translationTemplate);
 
 	const chainArray: [RunnableLike<any>, RunnableLike<any>, RunnableLike<any>] = [
 		systemPrompt,
