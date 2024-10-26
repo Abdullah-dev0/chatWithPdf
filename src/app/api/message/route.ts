@@ -17,28 +17,35 @@ const llm = new ChatGoogleGenerativeAI({
 	model: "gemini-1.5-pro",
 	apiKey: process.env.GOOGLE_API_KEY!,
 	maxRetries: 2,
-	temperature: 0.3, // Lower temperature for more focused responses
+	topP: 0.8,
+	temperature: 0.3,
 });
 
 // Improved system prompt for better context utilization
 const SYSTEM_TEMPLATE = `
-'Use the following pieces of context to answer the user's question in markdown format.',
+Use the following pieces of context to answer the user's question in markdown format.
 Important Instructions:
-1. Only use information from the provided context.
-2. If context is insufficient, respond with "Insufficient knowledge to provide an accurate answer. don't try to make up an answer."
-3. Keep responses focused and relevant to the user's question in a concise manner.
+1. Only use information from the provided context to answer
+2. If uncertain or if context doesn't contain the answer, say "I don't have enough information to answer that accurately"
+3. Keep responses focused and relevant
+4. Use bullet points or numbered lists when appropriate for clarity
+
 Context: {context}
-User Inquiry: {question}
-Response:
-`;
+User Question: {question}
 
-// Improved translation template for better accuracy
-const translationTemplate = `Act as a Translator and translate the following text to ${language} while maintaining technical accuracy. If the text contains a URL, do not translate the URL itself. Instead, provide a transliteration or explanation to make the link understandable for ${language} speakers.
+Answer:`;
 
-Original text: {translated_Text}
+// Enhanced translation template with technical preservation
+const translationTemplate = `
+Translate the following content to ${language}, following these rules:
+1. Preserve all technical terms, code snippets, and variables in their original form
+2. Maintain markdown formatting
+3. Provide technical term explanations in ${language} where necessary
+4. Keep URLs unchanged but add transliterated context
 
-Translated text:
-`;
+Original: {translated_Text}
+
+Translated content:`;
 
 const systemPrompt = PromptTemplate.fromTemplate(SYSTEM_TEMPLATE);
 
@@ -81,7 +88,10 @@ export const POST = async (req: NextRequest) => {
 		queryName: "match_documents",
 	});
 
-	const retriever = vectorStore.asRetriever();
+	const retriever = vectorStore.asRetriever({
+		searchType: "similarity",
+		k: 5,
+	});
 
 	const retrievedDocs = await retriever.invoke(message);
 

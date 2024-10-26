@@ -7,7 +7,7 @@ import {
 	DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { Button } from "./ui/button";
-import { Avatar, AvatarFallback } from "./ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import Image from "next/image";
 import { Icons } from "./Icons";
 import Link from "next/link";
@@ -27,23 +27,16 @@ const UserAccountNav = async ({ email, imageUrl, name }: UserAccountNavProps) =>
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild className="overflow-visible">
 				<Button className="rounded-full h-8 w-8 aspect-square bg-slate-400">
-					<Avatar className="relative w-8 h-8">
-						{imageUrl ? (
-							<div className="relative aspect-square h-full w-full">
-								{/* <Image
-                  fill
-                  src={imageUrl}
-                  alt='profile picture'
-                  referrerPolicy='no-referrer'
-                /> */}
-							</div>
-						) : (
-							<AvatarFallback>
-								<span className="sr-only">{name}</span>
-								<Icons.user className="h-4 w-4 text-zinc-900" />
-							</AvatarFallback>
-						)}
-					</Avatar>
+					{imageUrl ? (
+						<div className="relative aspect-square h-full w-full">
+							<Image fill src={imageUrl} alt="profile picture" referrerPolicy="no-referrer" />
+						</div>
+					) : (
+						<Avatar>
+							<AvatarImage src="https://github.com/shadcn.png" />
+							<AvatarFallback>CN</AvatarFallback>
+						</Avatar>
+					)}
 				</Button>
 			</DropdownMenuTrigger>
 
