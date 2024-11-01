@@ -15,7 +15,7 @@ const Navbar = () => {
 			<MaxWidthWrapper>
 				<div className="flex h-14 items-center justify-between border-b border-zinc-200">
 					<Link href="/" className="flex z-40 font-semibold">
-						<span>Bhatti Ai </span>
+						<span className="text-lg">TextTalk</span>
 					</Link>
 
 					<MobileNav isAuth={!!user} />
@@ -23,14 +23,6 @@ const Navbar = () => {
 					<div className="hidden items-center space-x-4 sm:flex">
 						{!user ? (
 							<>
-								<Link
-									href="/pricing"
-									className={buttonVariants({
-										variant: "ghost",
-										size: "sm",
-									})}>
-									Pricing
-								</Link>
 								<LoginLink
 									className={buttonVariants({
 										variant: "ghost",

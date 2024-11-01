@@ -25,9 +25,9 @@ const llm = new ChatGoogleGenerativeAI({
 const SYSTEM_TEMPLATE = `
 Use the following pieces of context to answer the user's question in markdown format.
 Important Instructions:
-1. Only use information from the provided context to answer
-2. If uncertain or if context doesn't contain the answer, say "I don't have enough information to answer that accurately"
-3. Keep responses focused and relevant
+1. Only use information from the provided context to answer.
+2. If uncertain or if context doesn't contain the answer or you dont know the answer don't try to make anyting just , say "I don't have enough information to answer that accurately"
+3. Keep responses focused and relevant also make sure to answer the question directly and concisely.
 4. Use bullet points or numbered lists when appropriate for clarity
 
 Context: {context}
