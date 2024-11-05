@@ -141,22 +141,14 @@ export const POST = async (req: NextRequest) => {
 	const readableStream = new ReadableStream({
 		async start(controller) {
 			const chunks: string[] = [];
-			let count = 0;
 
-			for await (const chunk of stream) {
-				// Rate limiting with minimal overhead
-				if (++count % 50 === 0) {
-					await new Promise((resolve) => setTimeout(resolve, 1));
+			try {
+				for await (const chunk of stream) {
+					controller.enqueue(chunk);
+					chunks.push(chunk);
 				}
 
-				controller.enqueue(chunk);
-				chunks.push(chunk);
-			}
-
-			controller.close();
-
-			// Save complete message
-			try {
+				// Save the complete message after receiving all chunks
 				await db.message.create({
 					data: {
 						text: chunks.join(""),
@@ -165,8 +157,11 @@ export const POST = async (req: NextRequest) => {
 						userId,
 					},
 				});
+
+				controller.close();
 			} catch (error) {
 				console.error("Error saving message", error);
+				controller.error(error);
 			}
 		},
 	});
