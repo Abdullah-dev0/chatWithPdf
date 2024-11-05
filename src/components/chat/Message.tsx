@@ -44,10 +44,13 @@ const Message = forwardRef<HTMLDivElement, MessageProps>(({ message, isNextMessa
 					})}>
 					{typeof message.text === "string" ? (
 						<ReactMarkdown
-							className={cn("prose", {
+							className={cn("prose dark:prose-invert max-w-none", {
 								"text-zinc-50": message.isUserMessage,
 							})}>
-							{message.text}
+							{message.text
+								.replace(/^```markdown/, "")
+								.replace(/```$/, "")
+								.trim()}
 						</ReactMarkdown>
 					) : (
 						message.text

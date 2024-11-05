@@ -6,40 +6,41 @@ import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
 import { SupabaseVectorStore } from "@langchain/community/vectorstores/supabase";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { PromptTemplate } from "@langchain/core/prompts";
-import { RunnableLike, RunnableSequence } from "@langchain/core/runnables";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-// import { ChatMistralAI } from "@langchain/mistralai";
+import { RunnableLike, RunnablePassthrough, RunnableSequence } from "@langchain/core/runnables";
+// import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatMistralAI } from "@langchain/mistralai";
 import { StreamingTextResponse } from "ai";
 import { NextRequest } from "next/server";
 const language: string = "English"; // Change this to the language you want to translate to
 
-const llm = new ChatGoogleGenerativeAI({
-	model: "gemini-1.5-pro",
-	apiKey: process.env.GOOGLE_API_KEY!,
+const llm = new ChatMistralAI({
+	model: "mistral-large-latest",
+	apiKey: process.env.OPENAI_API_KEY!,
 	maxRetries: 2,
-	topP: 0.8,
-	temperature: 0.3,
+	topP: 1,
+	temperature: 0,
 });
 
 // Improved system prompt for better context utilization
 const SYSTEM_TEMPLATE = `
-Use the following pieces of context to answer the user's question in markdown format.
-Important Instructions:
-1. Only use information from the provided context to answer.
-2. If uncertain or if context doesn't contain the answer or you dont know the answer don't try to make anyting just , say "I don't have enough information to answer that accurately"
-3. Keep responses focused and relevant also make sure to answer the question directly and concisely.
-4. Use bullet points or numbered lists when appropriate for clarity
+Use the following pieces of context (or previous conversaton if needed) to answer the users question in markdown format Do not wrap your response in markdown code blocks or fence blocks (\`\`\`). Just write the markdown content directly. \nIf you don't know the answer or there is no enough context , just say that you don't know, don't try to make up an answer
 
-Context: {context}
+Previous Conversation:{conversation_history}
+
+Context:{context}
+
+
 User Question: {question}
 
-Answer:`;
+
+Answer:
+ 
+`;
 
 // Enhanced translation template with technical preservation
 const translationTemplate = `
 Translate the following content to ${language}, following these rules:
 1. Preserve all technical terms, code snippets, and variables in their original form
-2. Maintain markdown formatting
 3. Provide technical term explanations in ${language} where necessary
 4. Keep URLs unchanged but add transliterated context
 
@@ -95,60 +96,77 @@ export const POST = async (req: NextRequest) => {
 
 	const retrievedDocs = await retriever.invoke(message);
 
-	const chainArray: [RunnableLike<any>, RunnableLike<any>, RunnableLike<any>] = [
+	const prevMessages = await db.message.findMany({
+		where: { fileId },
+		orderBy: { createdAt: "asc" },
+		take: 6,
+	});
+
+	const formattedPrevMessages = prevMessages.map((msg) => ({
+		role: msg.isUserMessage ? "user" : "assistant",
+		content: msg.text,
+	}));
+
+	// Create conversation history string
+	const conversationHistory = formattedPrevMessages
+		.map((message) => `${message.role === "user" ? "User" : "Assistant"}: ${message.content}`)
+		.join("\n");
+
+	const chainArray: any = [
+		{
+			context: async () => retrievedDocs.map((doc) => doc.pageContent).join("\n"),
+			question: new RunnablePassthrough(),
+			conversation_history: async () => conversationHistory,
+		},
 		systemPrompt,
 		llm,
 		new StringOutputParser(),
 	];
 
 	if (language !== "English") {
-		chainArray.push({ translated_Text: (preresult) => preresult }, translationPrompt, llm, new StringOutputParser());
+		chainArray.push(
+			{ translated_Text: (preresult: any) => preresult },
+			translationPrompt,
+			llm,
+			new StringOutputParser(),
+		);
 	}
 
 	const chain = RunnableSequence.from(chainArray);
 
 	const stream = await chain.stream({
-		context: retrievedDocs.map((doc) => doc.pageContent).join("\n\n"),
 		question: message,
 	});
 
 	const readableStream = new ReadableStream({
 		async start(controller) {
-			let response = "";
-			let chunkCount = 0;
+			const chunks: string[] = [];
+			let count = 0;
 
-			try {
-				for await (const chunk of stream) {
-					// Add rate limiting for very long streams
-					if (chunkCount++ % 50 === 0) {
-						await new Promise((resolve) => setTimeout(resolve, 1)); // Micro-delay every 50 chunks
-					}
-
-					// Encode and send each chunk to the client
-					controller.enqueue(chunk);
-					console.log(chunk);
-					response += chunk;
+			for await (const chunk of stream) {
+				// Rate limiting with minimal overhead
+				if (++count % 50 === 0) {
+					await new Promise((resolve) => setTimeout(resolve, 1));
 				}
 
-				// Close the stream after all chunks are sent
-				controller.close();
+				controller.enqueue(chunk);
+				chunks.push(chunk);
+			}
 
-				// Save to database with error handling
-				await db.message
-					.create({
-						data: {
-							text: response,
-							isUserMessage: false,
-							fileId,
-							userId,
-						},
-					})
-					.catch((error) => {
-						console.error("Failed to save to database:", error);
-					});
+			controller.close();
+
+			// Save complete message
+			try {
+				await db.message.create({
+					data: {
+						text: chunks.join(""),
+						isUserMessage: false,
+						fileId,
+						userId,
+					},
+				});
 			} catch (error) {
-				console.error("Stream processing error:", error);
-				controller.error(error);
+				console.error("Error saving message", error);
 			}
 		},
 	});

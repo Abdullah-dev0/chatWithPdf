@@ -7,6 +7,7 @@ import { INFINITE_QUERY_LIMIT } from "@/constant/infinite-query";
 import { absoluteUrl } from "@/lib/utils";
 import { getUserSubscriptionPlan, stripe } from "@/lib/stripe";
 import { PLANS } from "@/constant/stripe";
+import { supabaseClient } from "@/lib/database";
 
 export const appRouter = router({
 	authCallback: publicProcedure.query(async () => {
@@ -181,13 +182,17 @@ export const appRouter = router({
 
 		if (!file) throw new TRPCError({ code: "NOT_FOUND" });
 
-		await db.file.delete({
+		const deleteEmbedding = await supabaseClient.from("documents").delete().eq("metadata->>fileId", file.id); // Use metadata->>fileId to target the fileId within the metadata column
+		const deleteFile = await db.file.delete({
 			where: {
 				id: input.id,
 			},
 		});
-
-		return file;
+		try {
+			await Promise.all([deleteEmbedding, deleteFile]);
+		} catch (error) {
+			console.log("Error deleting file", error);
+		}
 	}),
 });
 
