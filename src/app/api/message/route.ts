@@ -1,4 +1,4 @@
-export const maxDuaration = 60
+export const maxDuration = 60; // This function can run for a maximum of 5 seconds
 
 import { db } from "@/db";
 import { supabaseClient } from "@/lib/database";
