@@ -1,3 +1,5 @@
+export const maxDuaration = 60
+
 import { db } from "@/db";
 import { supabaseClient } from "@/lib/database";
 import { embeddings } from "@/lib/embeddings";
