@@ -176,7 +176,7 @@ export const appRouter = router({
 			await Promise.all([deleteEmbedding, deleteFile]);
 			return file.id;
 		} catch (error) {
-			console.log("Error deleting file", error);
+			throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to delete file" });
 		}
 	}),
 });
