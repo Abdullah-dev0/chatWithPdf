@@ -1,7 +1,7 @@
 import { PLANS } from "@/constant/stripe";
 import { db } from "@/db";
-import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
 import Stripe from "stripe";
+import { currentUser } from "@clerk/nextjs/server";
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "", {
 	apiVersion: "2023-08-16",
@@ -9,10 +9,9 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "", {
 });
 
 export async function getUserSubscriptionPlan() {
-	const { getUser } = getKindeServerSession();
-	const user = getUser();
+	const user = await currentUser();
 
-	if (!user.id) {
+	if (!user?.id) {
 		return {
 			...PLANS[0],
 			isSubscribed: false,

@@ -1,18 +1,16 @@
 import { db } from "@/db";
 import { supabaseClient } from "@/lib/database";
 import { getUserSubscriptionPlan } from "@/lib/stripe";
-import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
 import { SupabaseVectorStore } from "@langchain/community/vectorstores/supabase";
 import { MistralAIEmbeddings } from "@langchain/mistralai";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { createUploadthing, type FileRouter } from "uploadthing/next";
-
+import { currentUser } from "@clerk/nextjs/server";
 const f = createUploadthing();
 
 const middleware = async () => {
-	const { getUser } = getKindeServerSession();
-	const user = getUser();
+	const user = await currentUser();
 
 	if (!user || !user.id) throw new Error("Unauthorized");
 
@@ -60,8 +58,8 @@ const onUploadComplete = async ({
 		const pageLevelDocs = await loader.load();
 
 		const splitter = new RecursiveCharacterTextSplitter({
-			chunkSize: 750,
-			chunkOverlap: 100,
+			chunkSize: 4096, // Adjust this value based on your model's token limit
+			chunkOverlap: 200,
 			separators: ["\n\n", "\n", ". ", " ", ""],
 		});
 
@@ -80,6 +78,12 @@ const onUploadComplete = async ({
 		const embeddings = new MistralAIEmbeddings({
 			apiKey: process.env.OPENAI_API_KEY!,
 			model: "mistral-embed", // Default value
+			onFailedAttempt: (attempt) => {
+				if (attempt > 3) {
+					throw new Error("Failed to get embeddings");
+				}
+			},
+			maxRetries: 3,
 		});
 
 		await SupabaseVectorStore.fromDocuments(pageLevelDocsWithId, embeddings, {

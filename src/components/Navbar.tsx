@@ -1,14 +1,15 @@
+"use client";
+
+import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@clerk/nextjs";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import MaxWidthWrapper from "./MaxWidthWrapper";
-import { buttonVariants } from "./ui/button";
-import { LoginLink, RegisterLink, getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
-import { ArrowRight } from "lucide-react";
-import UserAccountNav from "./UserAccountNav";
 import MobileNav from "./MobileNav";
+import { Button, buttonVariants } from "./ui/button";
+import { Skeleton } from "./ui/skeleton";
 
 const Navbar = () => {
-	const { getUser } = getKindeServerSession();
-	const user = getUser();
+	const { user, isLoaded } = useUser();
 
 	return (
 		<nav className="sticky h-14 inset-x-0 top-0 z-30 w-full border-b border-gray-200 bg-white/75 backdrop-blur-lg transition-all">
@@ -21,40 +22,35 @@ const Navbar = () => {
 					<MobileNav isAuth={!!user} />
 
 					<div className="hidden items-center space-x-4 sm:flex">
-						{!user ? (
+						{!isLoaded ? (
 							<>
-								<LoginLink
-									className={buttonVariants({
-										variant: "ghost",
-										size: "sm",
-									})}>
-									Sign in
-								</LoginLink>
-								<RegisterLink
-									className={buttonVariants({
-										size: "sm",
-									})}>
-									Get started <ArrowRight className="ml-1.5 h-5 w-5" />
-								</RegisterLink>
+								<Skeleton className="h-9 w-20 bg-zinc-300" />
+								<Skeleton className="h-10 w-32 bg-zinc-300" />
 							</>
 						) : (
 							<>
-								<Link
-									href="/dashboard"
-									className={buttonVariants({
-										variant: "ghost",
-										size: "sm",
-									})}>
-									Dashboard
-								</Link>
+								<SignedOut>
+									<SignInButton>
+										<Button size="sm">Sign in</Button>
+									</SignInButton>
+									<SignInButton>
+										<Button>
+											Get started <ArrowRight className="ml-1.5 h-5 w-5" />
+										</Button>
+									</SignInButton>
+								</SignedOut>
 
-								<UserAccountNav
-									name={
-										!user.given_name || !user.family_name ? "Your Account" : `${user.given_name} ${user.family_name}`
-									}
-									email={user.email ?? ""}
-									imageUrl={user.picture ?? ""}
-								/>
+								<SignedIn>
+									<Link
+										href="/dashboard"
+										className={buttonVariants({
+											variant: "ghost",
+											size: "sm",
+										})}>
+										Dashboard
+									</Link>
+									<UserButton />
+								</SignedIn>
 							</>
 						)}
 					</div>

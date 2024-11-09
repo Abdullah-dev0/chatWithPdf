@@ -6,15 +6,14 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "./ui/dialog";
-import { useToast } from "./ui/use-toast";
+import { toast } from "sonner";
 
 const UploadDropzone = ({ isSubscribed }: { isSubscribed: boolean }) => {
 	const router = useRouter();
 	const [isUploadComplete, setUploadIsComplete] = useState(false);
 
 	isSubscribed = true;
-
-	const { toast } = useToast();
+	const utils = trpc.useUtils();
 
 	const { mutate: startPolling } = trpc.getFile.useMutation({
 		onSuccess: (file) => {
@@ -23,10 +22,8 @@ const UploadDropzone = ({ isSubscribed }: { isSubscribed: boolean }) => {
 		retry: true,
 		retryDelay: 1000,
 		onError: (err) => {
-			toast({
-				title: "Something went wrong",
+			toast.error("Something went wrong", {
 				description: "Please try again later",
-				variant: "destructive",
 			});
 		},
 	});
@@ -43,21 +40,19 @@ const UploadDropzone = ({ isSubscribed }: { isSubscribed: boolean }) => {
 					endpoint={isSubscribed ? "proPlanUploader" : "freePlanUploader"}
 					onClientUploadComplete={(res) => {
 						setUploadIsComplete(true);
+						utils.getUserFiles.invalidate();
 						startPolling({ key: res[0].key });
 					}}
 					onUploadError={(error: Error) => {
-						toast({
-							title: "Something went wrong",
+						toast.error(error.message, {
 							description: "Please try again later",
-							variant: "destructive",
 						});
+						document.getElementById("upload-dialog")?.click();
 					}}
 					onChange={(files) => {
 						if (files.length > 1) {
-							toast({
-								title: "Only one file at a time",
-								description: "Please upload one file at a time",
-								variant: "destructive",
+							toast.error("You can only upload one file at a time", {
+								description: "Please try to upload one file at a time",
 							});
 							return;
 						}
@@ -79,7 +74,7 @@ const UploadButton = ({ isSubscribed }: { isSubscribed: boolean }) => {
 					setIsOpen(v);
 				}
 			}}>
-			<DialogTrigger onClick={() => setIsOpen(true)} asChild>
+			<DialogTrigger id="upload-dialog" onClick={() => setIsOpen(true)} asChild>
 				<Button>Upload PDF</Button>
 			</DialogTrigger>
 

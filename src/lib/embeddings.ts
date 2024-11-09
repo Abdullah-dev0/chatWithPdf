@@ -4,6 +4,13 @@ import { MistralAIEmbeddings } from "@langchain/mistralai";
 export const embeddings = new MistralAIEmbeddings({
 	apiKey: process.env.OPENAI_API_KEY!,
 	model: "mistral-embed",
-	batchSize: 8, // Optimize embedding batch size
-	stripNewLines: true, // Clean text for better embeddings
+
+	maxRetries: 2,
+
+	onFailedAttempt: (err) => {
+		if (err.response?.status === 429) {
+			throw new Error("Rate limit exceeded");
+		}
+	},
+	stripNewLines: true,
 });

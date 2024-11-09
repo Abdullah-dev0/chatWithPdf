@@ -1,40 +1,23 @@
-import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
-import { privateProcedure, publicProcedure, router } from "./trpc";
-import { TRPCError } from "@trpc/server";
-import { db } from "@/db";
-import { z } from "zod";
 import { INFINITE_QUERY_LIMIT } from "@/constant/infinite-query";
-import { absoluteUrl } from "@/lib/utils";
-import { getUserSubscriptionPlan, stripe } from "@/lib/stripe";
 import { PLANS } from "@/constant/stripe";
+import { db } from "@/db";
 import { supabaseClient } from "@/lib/database";
+import { getUserSubscriptionPlan, stripe } from "@/lib/stripe";
+import { absoluteUrl } from "@/lib/utils";
+import { auth } from "@clerk/nextjs/server";
+import { TRPCError } from "@trpc/server";
+import { z } from "zod";
+import { privateProcedure, publicProcedure, router } from "./trpc";
 
 export const appRouter = router({
 	authCallback: publicProcedure.query(async () => {
-		const { getUser } = getKindeServerSession();
-		const user = getUser();
+		const user = await auth();
 
-		if (!user.id || !user.email) throw new TRPCError({ code: "UNAUTHORIZED" });
-
-		// check if the user is in the database
-		const dbUser = await db.user.findFirst({
-			where: {
-				id: user.id,
-			},
-		});
-
-		if (!dbUser) {
-			// create user in db
-			await db.user.create({
-				data: {
-					id: user.id,
-					email: user.email,
-				},
-			});
-		}
+		if (!user || !user.userId) throw new TRPCError({ code: "UNAUTHORIZED" });
 
 		return { success: true };
 	}),
+
 	getUserFiles: privateProcedure.query(async ({ ctx }) => {
 		const { userId } = ctx;
 
@@ -182,7 +165,8 @@ export const appRouter = router({
 
 		if (!file) throw new TRPCError({ code: "NOT_FOUND" });
 
-		const deleteEmbedding = await supabaseClient.from("documents").delete().eq("metadata->>fileId", file.id); // Use metadata->>fileId to target the fileId within the metadata column
+		const deleteEmbedding = await supabaseClient.from("documents").delete().eq("metadata->>fileId", file.id);
+
 		const deleteFile = await db.file.delete({
 			where: {
 				id: input.id,
@@ -190,6 +174,7 @@ export const appRouter = router({
 		});
 		try {
 			await Promise.all([deleteEmbedding, deleteFile]);
+			return file.id;
 		} catch (error) {
 			console.log("Error deleting file", error);
 		}

@@ -1,5 +1,5 @@
 import { ReactNode, createContext, useRef, useState } from "react";
-import { useToast } from "../ui/use-toast";
+import { toast } from "sonner";
 import { useMutation } from "@tanstack/react-query";
 import { trpc } from "@/app/_trpc/client";
 import { INFINITE_QUERY_LIMIT } from "@/constant/infinite-query";
@@ -28,8 +28,6 @@ export const ChatContextProvider = ({ fileId, children }: Props) => {
 	const [isLoading, setIsLoading] = useState<boolean>(false);
 
 	const utils = trpc.useUtils();
-
-	const { toast } = useToast();
 
 	const backupMessage = useRef("");
 
@@ -101,11 +99,10 @@ export const ChatContextProvider = ({ fileId, children }: Props) => {
 			setIsLoading(false);
 
 			if (!stream) {
-				return toast({
-					title: "There was a problem sending this message",
-					description: "Please refresh this page and try again",
-					variant: "destructive",
+				toast.error("Failed to send message", {
+					description: "There was an error sending the message",
 				});
+				return;
 			}
 
 			const reader = stream.getReader();

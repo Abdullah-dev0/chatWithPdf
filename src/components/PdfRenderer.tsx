@@ -5,7 +5,7 @@ import { Document, Page, pdfjs } from "react-pdf";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
-import { useToast } from "./ui/use-toast";
+import { toast } from "sonner";
 
 import { useResizeDetector } from "react-resize-detector";
 import { Button } from "./ui/button";
@@ -29,8 +29,6 @@ interface PdfRendererProps {
 }
 
 const PdfRenderer = ({ url }: PdfRendererProps) => {
-	const { toast } = useToast();
-
 	const [numPages, setNumPages] = useState<number>();
 	const [currPage, setCurrPage] = useState<number>(1);
 	const [scale, setScale] = useState<number>(1);
@@ -56,8 +54,6 @@ const PdfRenderer = ({ url }: PdfRendererProps) => {
 		},
 		resolver: zodResolver(CustomPageValidator),
 	});
-
-	console.log(errors);
 
 	const { width, ref } = useResizeDetector();
 
@@ -144,13 +140,9 @@ const PdfRenderer = ({ url }: PdfRendererProps) => {
 								</div>
 							}
 							onLoadError={({ message }) => {
-								toast({
-									title: "Error loading PDF",
-									description: "Please try again later",
-									variant: "destructive",
+								toast.error("Failed to load PDF", {
+									description: message,
 								});
-
-								console.log(message);
 							}}
 							onLoadSuccess={({ numPages }) => setNumPages(numPages)}
 							file={url}

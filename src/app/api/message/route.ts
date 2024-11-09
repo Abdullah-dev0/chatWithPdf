@@ -1,17 +1,17 @@
-export const maxDuration = 60; // This function can run for a maximum of 5 seconds
-
+export const maxDuration = 60;
 import { db } from "@/db";
 import { supabaseClient } from "@/lib/database";
 import { embeddings } from "@/lib/embeddings";
 import { SendMessageValidator } from "@/lib/validators/SendMessageValidator";
-import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
+import { currentUser } from "@clerk/nextjs/server";
 import { SupabaseVectorStore } from "@langchain/community/vectorstores/supabase";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { PromptTemplate } from "@langchain/core/prompts";
-import { RunnableLike, RunnablePassthrough, RunnableSequence } from "@langchain/core/runnables";
+import { RunnablePassthrough, RunnableSequence } from "@langchain/core/runnables";
 // import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { ChatMistralAI } from "@langchain/mistralai";
 import { StreamingTextResponse } from "ai";
+
 import { NextRequest } from "next/server";
 const language: string = "English"; // Change this to the language you want to translate to
 
@@ -25,7 +25,9 @@ const llm = new ChatMistralAI({
 
 // Improved system prompt for better context utilization
 const SYSTEM_TEMPLATE = `
-Use the following pieces of context (or previous conversaton if needed) to answer the users question in markdown format Do not wrap your response in markdown code blocks or fence blocks (\`\`\`). Just write the markdown content directly. \nIf you don't know the answer or there is no enough context , just say that you don't know, don't try to make up an answer
+Use the following pieces of context (or previous conversaton if needed) to answer the users question in markdown format Do not wrap your response in markdown code blocks or fence blocks (\`\`\`). Just write the markdown content directly. \n If you don't know the answer or there is no enough context , just say that you don't know, don't try to make up an answer
+
+*IMPORTANT* : Do not Answer any other questions other than the context provided.
 
 Previous Conversation:{conversation_history}
 
@@ -39,7 +41,6 @@ Answer:
  
 `;
 
-// Enhanced translation template with technical preservation
 const translationTemplate = `
 Translate the following content to ${language}, following these rules:
 1. Preserve all technical terms, code snippets, and variables in their original form
@@ -57,19 +58,16 @@ const translationPrompt = PromptTemplate.fromTemplate(translationTemplate);
 export const POST = async (req: NextRequest) => {
 	const body = await req.json();
 
-	const { getUser } = getKindeServerSession();
-	const user = getUser();
+	const user = await currentUser();
 
-	const { id: userId } = user;
-
-	if (!userId) return new Response("Unauthorized", { status: 401 });
+	if (!user) return new Response("Unauthorized", { status: 401 });
 
 	const { fileId, message } = SendMessageValidator.parse(body);
 
 	const file = await db.file.findFirst({
 		where: {
 			id: fileId,
-			userId,
+			// user.id,
 		},
 	});
 
@@ -79,7 +77,7 @@ export const POST = async (req: NextRequest) => {
 		data: {
 			text: message,
 			isUserMessage: true,
-			userId,
+			// userId,
 			fileId,
 		},
 	});
@@ -109,7 +107,6 @@ export const POST = async (req: NextRequest) => {
 		content: msg.text,
 	}));
 
-	// Create conversation history string
 	const conversationHistory = formattedPrevMessages
 		.map((message) => `${message.role === "user" ? "User" : "Assistant"}: ${message.content}`)
 		.join("\n");
@@ -127,7 +124,7 @@ export const POST = async (req: NextRequest) => {
 
 	if (language !== "English") {
 		chainArray.push(
-			{ translated_Text: (preresult: any) => preresult },
+			{ translated_Text: (preresult: string) => preresult },
 			translationPrompt,
 			llm,
 			new StringOutputParser(),
@@ -156,7 +153,7 @@ export const POST = async (req: NextRequest) => {
 						text: chunks.join(""),
 						isUserMessage: false,
 						fileId,
-						userId,
+						// userId,
 					},
 				});
 
