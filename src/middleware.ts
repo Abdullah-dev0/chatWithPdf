@@ -24,6 +24,8 @@ export default clerkMiddleware(async (auth, request) => {
 	if (user.userId && request.nextUrl.pathname === "/") {
 		return NextResponse.rewrite(url);
 	}
+
+	return NextResponse.next();
 });
 
 export const config = {
