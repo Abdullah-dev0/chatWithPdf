@@ -6,13 +6,15 @@ import Message from "./Message";
 import { useContext, useEffect, useRef } from "react";
 import { ChatContext } from "./ChatContext";
 import { useIntersection } from "@mantine/hooks";
+import { Button } from "../ui/button";
 
 interface MessagesProps {
 	fileId: string;
 }
 
 const Messages = ({ fileId }: MessagesProps) => {
-	const { isLoading: isAiThinking } = useContext(ChatContext);
+	const { isLoading: isAiThinking, setMessage } = useContext(ChatContext);
+	console.log("Messages component rendered");
 
 	const { data, isLoading, fetchNextPage } = trpc.getFileMessages.useInfiniteQuery(
 		{
@@ -78,6 +80,12 @@ const Messages = ({ fileId }: MessagesProps) => {
 					<MessageSquare className="h-8 w-8 text-blue-500" />
 					<h3 className="font-semibold text-xl">You&apos;re all set!</h3>
 					<p className="text-zinc-500 text-sm">Ask your first question to get started.</p>
+					<div className=" flex flex-col justify-center gap-2">
+						<Button onClick={() => setMessage("Give me summery of this")}>Give me summery of this</Button>
+						<Button onClick={() => setMessage("Who is the author of this or who created this?")}>
+							Who is the author of this or who created this?
+						</Button>
+					</div>
 				</div>
 			)}
 		</div>

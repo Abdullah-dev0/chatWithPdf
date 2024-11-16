@@ -22,7 +22,7 @@ export default clerkMiddleware(async (auth, request) => {
 	const url = request.nextUrl.clone();
 	url.pathname = "/dashboard";
 	if (user.userId && request.nextUrl.pathname === "/") {
-		return NextResponse.rewrite(url);
+		return NextResponse.redirect(new URL("/dashboard", request.url));
 	}
 
 	return NextResponse.next();

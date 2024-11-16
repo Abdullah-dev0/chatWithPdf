@@ -1,13 +1,13 @@
 import { INFINITE_QUERY_LIMIT } from "@/constant/infinite-query";
 import { PLANS } from "@/constant/stripe";
 import { db } from "@/db";
-import { supabaseClient } from "@/lib/database";
 import { getUserSubscriptionPlan, stripe } from "@/lib/stripe";
 import { absoluteUrl } from "@/lib/utils";
 import { auth } from "@clerk/nextjs/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { privateProcedure, publicProcedure, router } from "./trpc";
+import index from "@/lib/pinecone";
 
 export const appRouter = router({
 	authCallback: publicProcedure.query(async () => {
@@ -165,16 +165,23 @@ export const appRouter = router({
 
 		if (!file) throw new TRPCError({ code: "NOT_FOUND" });
 
-		const deleteEmbedding = await supabaseClient.from("documents").delete().eq("metadata->>fileId", file.id);
+		const deleteFileFromDb = async (id: string) => {
+			return db.file.delete({
+				where: {
+					id,
+				},
+			});
+		};
 
-		const deleteFile = await db.file.delete({
-			where: {
-				id: input.id,
-			},
-		});
+		const deleteFileFromIndex = async (id: string) => {
+			return index.namespace(id).deleteAll();
+		};
+
 		try {
-			await Promise.all([deleteEmbedding, deleteFile]);
-			return file.id;
+			await Promise.all([
+				deleteFileFromDb(input.id),
+				deleteFileFromIndex(input.id),
+			]);
 		} catch (error) {
 			throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to delete file" });
 		}

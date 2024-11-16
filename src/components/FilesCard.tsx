@@ -8,39 +8,15 @@ import { useState } from "react";
 import LoadingFiles from "./LoadingFiles";
 import { Button } from "./ui/button";
 import { toast } from "sonner";
+import DeleteFile from "./DeleteFile";
 
 const FilesCard = () => {
-	const [currentlyDeletingFile, setCurrentlyDeletingFile] = useState<string | null>(null);
-
-	const utils = trpc.useUtils();
-
 	const { data: files, isFetching } = trpc.getUserFiles.useQuery(undefined, {
 		staleTime: 1000 * 60 * 5,
 
 		retry(failureCount, error) {
 			if (error.message === "unauthorized") return false;
 			return failureCount < 3;
-		},
-	});
-
-	const { mutate: deleteFile } = trpc.deleteFile.useMutation({
-		onSuccess: (id) => {
-			utils.getUserFiles.ensureData();
-
-			utils.getUserFiles.setData(undefined, (oldData) => {
-				if (!oldData) return [];
-				return oldData.filter((file) => file.id !== id);
-			});
-
-			toast.success("File deleted successfully", {
-				description: `The file has been deleted successfully at ${new Date().toLocaleTimeString()}`,
-			});
-		},
-		onMutate({ id }) {
-			setCurrentlyDeletingFile(id);
-		},
-		onSettled() {
-			setCurrentlyDeletingFile(null);
 		},
 	});
 
@@ -94,17 +70,7 @@ const FilesCard = () => {
 										mocked
 									</div>
 
-									<Button
-										onClick={() => deleteFile({ id: file.id })}
-										size="sm"
-										className="w-full"
-										variant="destructive">
-										{currentlyDeletingFile === file.id ? (
-											<Loader2 className="h-4 w-4 animate-spin" />
-										) : (
-											<Trash className="h-4 w-4" />
-										)}
-									</Button>
+									<DeleteFile id={file.id} />
 								</div>
 							</li>
 						))}

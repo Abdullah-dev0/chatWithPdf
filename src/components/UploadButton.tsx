@@ -3,12 +3,21 @@ import { trpc } from "@/app/_trpc/client";
 import { OurFileRouter } from "@/app/api/uploadthing/core";
 import { UploadDropzone as Drop } from "@uploadthing/react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState, RefObject } from "react";
 import { Button } from "./ui/button";
-import { Dialog, DialogContent, DialogTrigger } from "./ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { toast } from "sonner";
+import { Trash } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import DeleteFile from "./DeleteFile";
 
-const UploadDropzone = ({ isSubscribed }: { isSubscribed: boolean }) => {
+const UploadDropzone = ({
+	isSubscribed,
+	dialogTriggerRef,
+}: {
+	isSubscribed: boolean;
+	dialogTriggerRef: RefObject<HTMLButtonElement>;
+}) => {
 	const router = useRouter();
 	const [isUploadComplete, setUploadIsComplete] = useState(false);
 
@@ -17,7 +26,17 @@ const UploadDropzone = ({ isSubscribed }: { isSubscribed: boolean }) => {
 
 	const { mutate: startPolling } = trpc.getFile.useMutation({
 		onSuccess: (file) => {
-			router.push(`/dashboard/${file.id}`);
+			if (file.uploadStatus === "SUCCESS") {
+				router.push(`/dashboard/${file.id}`);
+			}
+			if (file.uploadStatus === "FAILED") {
+				toast.error("Something went wrong while processing your file", {
+					description: "Your File was uploaded successfully but we couldn't process it delete and try again",
+					duration: 12000,
+					action: <DeleteFile className=" w-fit" id={file.id} />,
+				});
+				dialogTriggerRef.current?.click();
+			}
 		},
 		retry: true,
 		retryDelay: 1000,
@@ -32,24 +51,23 @@ const UploadDropzone = ({ isSubscribed }: { isSubscribed: boolean }) => {
 		<>
 			{isUploadComplete ? (
 				<p className="min-h-[400px] w-full grid place-content-center text-2xl font-medium font-mono">
-					Redirecting to Chat Page..😁
+					Processing your PDF...⚡
 				</p>
 			) : (
-				<Drop<OurFileRouter, any>
+				// @ts-ignore
+				<Drop
 					className="ut-label:text-lg text-white ut-allowed-content:ut-uploading:text-red-300"
-					endpoint={isSubscribed ? "proPlanUploader" : "freePlanUploader"}
-					onClientUploadComplete={(res) => {
+					endpoint="FileUploader"
+					onClientUploadComplete={(res: any) => {
 						setUploadIsComplete(true);
+						toast.success("File uploaded successfully");
 						utils.getUserFiles.invalidate();
 						startPolling({ key: res[0].key });
 					}}
 					onUploadError={(error: Error) => {
-						toast.error(error.message, {
-							description: "Please try again later",
-						});
-						document.getElementById("upload-dialog")?.click();
+						alert(`ERROR! ${error.message}`);
 					}}
-					onChange={(files) => {
+					onChange={(files: any) => {
 						if (files.length > 1) {
 							toast.error("You can only upload one file at a time", {
 								description: "Please try to upload one file at a time",
@@ -65,6 +83,7 @@ const UploadDropzone = ({ isSubscribed }: { isSubscribed: boolean }) => {
 
 const UploadButton = ({ isSubscribed }: { isSubscribed: boolean }) => {
 	const [isOpen, setIsOpen] = useState<boolean>(false);
+	const dialogTriggerRef = useRef<HTMLButtonElement>(null);
 
 	return (
 		<Dialog
@@ -74,12 +93,13 @@ const UploadButton = ({ isSubscribed }: { isSubscribed: boolean }) => {
 					setIsOpen(v);
 				}
 			}}>
-			<DialogTrigger id="upload-dialog" onClick={() => setIsOpen(true)} asChild>
+			<DialogTrigger ref={dialogTriggerRef} onClick={() => setIsOpen(true)} asChild>
 				<Button>Upload PDF</Button>
 			</DialogTrigger>
 
 			<DialogContent>
-				<UploadDropzone isSubscribed={isSubscribed} />
+				<DialogTitle>Upload PDF</DialogTitle>
+				<UploadDropzone dialogTriggerRef={dialogTriggerRef} isSubscribed={isSubscribed} />
 			</DialogContent>
 		</Dialog>
 	);

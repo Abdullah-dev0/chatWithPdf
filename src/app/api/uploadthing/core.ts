@@ -1,124 +1,91 @@
 import { db } from "@/db";
-import { supabaseClient } from "@/lib/database";
-import { getUserSubscriptionPlan } from "@/lib/stripe";
+import { currentUser } from "@clerk/nextjs/server";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
-import { SupabaseVectorStore } from "@langchain/community/vectorstores/supabase";
 import { MistralAIEmbeddings } from "@langchain/mistralai";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { createUploadthing, type FileRouter } from "uploadthing/next";
-import { currentUser } from "@clerk/nextjs/server";
+import { UploadThingError } from "uploadthing/server";
+import index from "@/lib/pinecone";
+import { PineconeStore } from "@langchain/pinecone";
+import { embeddings } from "@/lib/embeddings";
+
 const f = createUploadthing();
 
-const middleware = async () => {
-	const user = await currentUser();
+export const ourFileRouter: FileRouter = {
+	FileUploader: f({ pdf: { maxFileSize: "8MB" } })
+		.middleware(async () => {
+			const user = await currentUser();
 
-	if (!user || !user.id) throw new Error("Unauthorized");
+			if (!user || !user.id) throw new UploadThingError("No user ID");
 
-	const subscriptionPlan = await getUserSubscriptionPlan();
+			return { userId: user.id };
+		})
+		.onUploadComplete(async ({ metadata, file }) => {
+			const isFileExist = await db.file.findFirst({
+				where: {
+					key: file.key,
+				},
+			});
 
-	return { subscriptionPlan, userId: user.id };
-};
+			if (isFileExist) return;
 
-const onUploadComplete = async ({
-	metadata,
-	file,
-}: {
-	metadata: Awaited<ReturnType<typeof middleware>>;
-	file: {
-		key: string;
-		name: string;
-		url: string;
-	};
-}) => {
-	const isFileExist = await db.file.findFirst({
-		where: {
-			key: file.key,
-		},
-	});
+			const createdFile = await db.file.create({
+				data: {
+					key: file.key,
+					name: file.name,
+					userId: metadata.userId,
+					url: file.url,
+					uploadStatus: "PROCESSING",
+				},
+			});
 
-	if (isFileExist) return;
+			try {
+				const response = await fetch(file.url);
+				const blob = await response.blob();
+				const loader = new PDFLoader(blob);
+				const pageLevelDocs = await loader.load();
 
-	const createdFile = await db.file.create({
-		data: {
-			key: file.key,
-			name: file.name,
-			userId: metadata.userId,
-			url: file.url,
-			uploadStatus: "PROCESSING",
-		},
-	});
+				const splitter = new RecursiveCharacterTextSplitter({
+					chunkSize: 2000,
+					chunkOverlap: 100,
+					separators: ["\n\n", "\n", ". ", " ", ""],
+				});
 
-	try {
-		const response = await fetch(file.url);
+				const splitDocs = await splitter.splitDocuments(pageLevelDocs);
 
-		const blob = await response.blob();
+				const pageLevelDocsWithId = splitDocs.map((doc) => ({
+					pageContent: doc.pageContent,
+					metadata: {
+						fileId: createdFile.id,
+						pageNumber: doc.metadata.loc?.pageNumber,
+					},
+				}));
 
-		const loader = new PDFLoader(blob);
+				await PineconeStore.fromDocuments(pageLevelDocsWithId, embeddings, {
+					pineconeIndex: index,
+					namespace: createdFile.id,
+				});
 
-		const pageLevelDocs = await loader.load();
-
-		const splitter = new RecursiveCharacterTextSplitter({
-			chunkSize: 4096, // Adjust this value based on your model's token limit
-			chunkOverlap: 200,
-			separators: ["\n\n", "\n", ". ", " ", ""],
-		});
-
-		const splitDocs = await splitter.splitDocuments(pageLevelDocs);
-
-		const pageLevelDocsWithId = splitDocs.map((doc, index) => ({
-			pageContent: doc.pageContent,
-			metadata: {
-				fileId: createdFile.id,
-				pageNumber: index,
-			},
-		}));
-
-		// vectorize and index entire document
-
-		const embeddings = new MistralAIEmbeddings({
-			apiKey: process.env.OPENAI_API_KEY!,
-			model: "mistral-embed", // Default value
-			onFailedAttempt: (attempt) => {
-				if (attempt > 3) {
-					throw new Error("Failed to get embeddings");
-				}
-			},
-			maxRetries: 3,
-		});
-
-		await SupabaseVectorStore.fromDocuments(pageLevelDocsWithId, embeddings, {
-			client: supabaseClient,
-			tableName: "documents",
-		});
-
-		await db.file.update({
-			data: {
-				uploadStatus: "SUCCESS",
-			},
-			where: {
-				id: createdFile.id,
-			},
-		});
-	} catch (err) {
-		await db.file.update({
-			data: {
-				uploadStatus: "FAILED",
-			},
-			where: {
-				id: createdFile.id,
-			},
-		});
-		console.log(err);
-	}
-};
-
-export const ourFileRouter = {
-	freePlanUploader: f({ pdf: { maxFileSize: "4MB" } })
-		.middleware(middleware)
-		.onUploadComplete(onUploadComplete),
-	proPlanUploader: f({ pdf: { maxFileSize: "16MB" } })
-		.middleware(middleware)
-		.onUploadComplete(onUploadComplete),
+				await db.file.update({
+					data: {
+						uploadStatus: "SUCCESS",
+					},
+					where: {
+						id: createdFile.id,
+					},
+				});
+			} catch (err) {
+				await db.file.update({
+					data: {
+						uploadStatus: "FAILED",
+					},
+					where: {
+						id: createdFile.id,
+					},
+				});
+				console.log(err);
+			}
+		}),
 } satisfies FileRouter;
 
 export type OurFileRouter = typeof ourFileRouter;

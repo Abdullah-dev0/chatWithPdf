@@ -1,4 +1,4 @@
-
+"use client";
 import {
 	Select,
 	SelectContent,
@@ -9,12 +9,17 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { languages } from "@/constant/stripe";
+import { useContext } from "react";
+import { ChatContext } from "./ChatContext";
 
 export default function SelectLanguage() {
+	const { language, setLanguage } = useContext(ChatContext);
 	return (
-		<Select defaultValue="language">
-			<SelectTrigger className="w-[280px] focus:ring-0 focus:ring-offset-0 !ring-0 !ring-offset-0">
-				<SelectValue placeholder="Select a timezone" />
+		<Select defaultValue={language}
+		 value={language} 
+		 onValueChange={setLanguage}>
+			<SelectTrigger className=" w-[100px] focus:ring-0 focus:ring-offset-0 !ring-0 !ring-offset-0">
+				<SelectValue placeholder="Select a Language" />
 			</SelectTrigger>
 			<SelectContent>
 				<SelectGroup>

@@ -1,9 +1,11 @@
 import { cn } from "@/lib/utils";
-import { ExtendedMessage } from "@/types/message";
+import { ExtendedMessage, MessageLoadingStates, MessageUpdate } from "@/types/message";
 import { format } from "date-fns";
-import { forwardRef } from "react";
+import { forwardRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { Icons } from "../Icons";
+import TextOptions from "./TextOptions";
+import { Loader2 } from "lucide-react";
 
 interface MessageProps {
 	message: ExtendedMessage;
@@ -11,6 +13,55 @@ interface MessageProps {
 }
 
 const Message = forwardRef<HTMLDivElement, MessageProps>(({ message, isNextMessageSamePerson }, ref) => {
+	const [messageStates, setMessageStates] = useState<MessageLoadingStates>({});
+	const [updates, setUpdates] = useState<MessageUpdate | null>(null);
+
+	const handleUpdateMessage = (update: MessageUpdate) => {
+		setUpdates(update);
+	};
+
+	const handleLoadingStateChange = (state: MessageLoadingStates) => {
+		setMessageStates((prev) => ({ ...prev, ...state }));
+	};
+
+	const renderMessageContent = () => {
+		// Show loading state for specific operations
+		if (messageStates.summarize || messageStates.paraphrase) {
+			return (
+				<span className="flex h-full items-center justify-center">
+					<Loader2 className="h-4 w-4 animate-spin" />
+					<span className="ml-2 text-sm text-gray-500">
+						{messageStates.summarize ? "Summarizing..." : "Paraphrasing..."}
+					</span>
+				</span>
+			);
+		}
+
+		// Show updated content if available
+		if (updates?.content) {
+			return (
+				<ReactMarkdown
+					className={cn("prose dark:prose-invert max-w-none", {
+						"text-zinc-50": message.isUserMessage,
+					})}>
+					{updates.content}
+				</ReactMarkdown>
+			);
+		}
+
+		// Show original message
+		return typeof message.text === "string" ? (
+			<ReactMarkdown
+				className={cn("prose dark:prose-invert max-w-none", {
+					"text-zinc-50": message.isUserMessage,
+				})}>
+				{message.text}
+			</ReactMarkdown>
+		) : (
+			message.text
+		);
+	};
+
 	return (
 		<div
 			ref={ref}
@@ -42,20 +93,18 @@ const Message = forwardRef<HTMLDivElement, MessageProps>(({ message, isNextMessa
 						"rounded-br-none": !isNextMessageSamePerson && message.isUserMessage,
 						"rounded-bl-none": !isNextMessageSamePerson && !message.isUserMessage,
 					})}>
-					{typeof message.text === "string" ? (
-						<ReactMarkdown
-							className={cn("prose dark:prose-invert max-w-none", {
-								"text-zinc-50": message.isUserMessage,
-							})}>
-							{message.text
-								.replace(/^```markdown/, "")
-								.replace(/```$/, "")
-								.trim()}
-						</ReactMarkdown>
-					) : (
-						message.text
+					{!message.isUserMessage && typeof message.text === "string" && (
+						<TextOptions
+							text={message.text}
+							id={message.id}
+							onUpdateMessage={handleUpdateMessage}
+							onLoadingStateChange={handleLoadingStateChange}
+						/>
 					)}
-					{message.id !== "loading-message" ? (
+
+					{renderMessageContent()}
+
+					{message.id !== "loading-message" && (
 						<div
 							className={cn("text-xs select-none mt-2 w-full text-right", {
 								"text-zinc-500": !message.isUserMessage,
@@ -63,7 +112,7 @@ const Message = forwardRef<HTMLDivElement, MessageProps>(({ message, isNextMessa
 							})}>
 							{format(new Date(message.createdAt), "HH:mm")}
 						</div>
-					) : null}
+					)}
 				</div>
 			</div>
 		</div>

@@ -12,3 +12,14 @@ type ExtendedText = {
 }
 
 export type ExtendedMessage = OmitText & ExtendedText
+
+export interface MessageLoadingStates {
+  summarize?: boolean;
+  paraphrase?: boolean;
+  translate?: boolean;
+}
+
+export interface MessageUpdate {
+  type: 'summarize' | 'paraphrase' | 'translate';
+  content: string;
+}

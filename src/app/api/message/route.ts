@@ -1,59 +1,23 @@
 export const maxDuration = 60;
 import { db } from "@/db";
-import { supabaseClient } from "@/lib/database";
 import { embeddings } from "@/lib/embeddings";
+import index from "@/lib/pinecone";
+import { createChatTemplate, createTranslationTemplate } from "@/lib/templates/chat-templates";
 import { SendMessageValidator } from "@/lib/validators/SendMessageValidator";
 import { currentUser } from "@clerk/nextjs/server";
-import { SupabaseVectorStore } from "@langchain/community/vectorstores/supabase";
 import { StringOutputParser } from "@langchain/core/output_parsers";
-import { PromptTemplate } from "@langchain/core/prompts";
 import { RunnablePassthrough, RunnableSequence } from "@langchain/core/runnables";
-// import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { ChatMistralAI } from "@langchain/mistralai";
+import { PineconeStore } from "@langchain/pinecone";
 import { StreamingTextResponse } from "ai";
-
 import { NextRequest } from "next/server";
-const language: string = "English"; // Change this to the language you want to translate to
 
 const llm = new ChatMistralAI({
 	model: "mistral-large-latest",
 	apiKey: process.env.OPENAI_API_KEY!,
 	maxRetries: 2,
-	topP: 1,
-	temperature: 0,
+	temperature: 0.3,
 });
-
-// Improved system prompt for better context utilization
-const SYSTEM_TEMPLATE = `
-Use the following pieces of context (or previous conversaton if needed) to answer the users question in markdown format Do not wrap your response in markdown code blocks or fence blocks (\`\`\`). Just write the markdown content directly. \n If you don't know the answer or there is no enough context , just say that you don't know, don't try to make up an answer
-
-*IMPORTANT* : Do not Answer any other questions other than the context provided.
-
-Previous Conversation:{conversation_history}
-
-Context:{context}
-
-
-User Question: {question}
-
-
-Answer:
- 
-`;
-
-const translationTemplate = `
-Translate the following content to ${language}, following these rules:
-1. Preserve all technical terms, code snippets, and variables in their original form
-3. Provide technical term explanations in ${language} where necessary
-4. Keep URLs unchanged but add transliterated context
-
-Original: {translated_Text}
-
-Translated content:`;
-
-const systemPrompt = PromptTemplate.fromTemplate(SYSTEM_TEMPLATE);
-
-const translationPrompt = PromptTemplate.fromTemplate(translationTemplate);
 
 export const POST = async (req: NextRequest) => {
 	const body = await req.json();
@@ -62,12 +26,14 @@ export const POST = async (req: NextRequest) => {
 
 	if (!user) return new Response("Unauthorized", { status: 401 });
 
-	const { fileId, message } = SendMessageValidator.parse(body);
+	const { fileId, message, language } = SendMessageValidator.parse(body);
+
+	const lowerCaseLanguage = language.toLowerCase();
 
 	const file = await db.file.findFirst({
 		where: {
 			id: fileId,
-			// user.id,
+			userId: user.id,
 		},
 	});
 
@@ -77,24 +43,17 @@ export const POST = async (req: NextRequest) => {
 		data: {
 			text: message,
 			isUserMessage: true,
-			// userId,
+			userId: user.id,
 			fileId,
 		},
 	});
 
-	const vectorStore = new SupabaseVectorStore(embeddings, {
-		client: supabaseClient,
-		tableName: "documents",
-		filter: { fileId },
-		queryName: "match_documents",
+	const vectorStore = await PineconeStore.fromExistingIndex(embeddings, {
+		pineconeIndex: index,
+		namespace: file.id,
 	});
 
-	const retriever = vectorStore.asRetriever({
-		searchType: "similarity",
-		k: 5,
-	});
-
-	const retrievedDocs = await retriever.invoke(message);
+	const retrievedDocs = await vectorStore.similaritySearch(message, 4);
 
 	const prevMessages = await db.message.findMany({
 		where: { fileId },
@@ -103,29 +62,32 @@ export const POST = async (req: NextRequest) => {
 	});
 
 	const formattedPrevMessages = prevMessages.map((msg) => ({
-		role: msg.isUserMessage ? "user" : "assistant",
+		role: msg.isUserMessage ? ("user" as const) : ("system" as const),
 		content: msg.text,
 	}));
 
-	const conversationHistory = formattedPrevMessages
-		.map((message) => `${message.role === "user" ? "User" : "Assistant"}: ${message.content}`)
-		.join("\n");
+	const context = retrievedDocs
+		.map((doc) => `${doc.pageContent}\nPage Number: ${doc.metadata?.pageNumber}`)
+		.join("\n\n");
 
 	const chainArray: any = [
 		{
-			context: async () => retrievedDocs.map((doc) => doc.pageContent).join("\n"),
+			context: () => context,
 			question: new RunnablePassthrough(),
-			conversation_history: async () => conversationHistory,
+			conversation_history: async () => formattedPrevMessages,
 		},
-		systemPrompt,
+		createChatTemplate(formattedPrevMessages),
 		llm,
 		new StringOutputParser(),
 	];
 
-	if (language !== "English") {
+	if (lowerCaseLanguage !== "english") {
+		console.log("PUSHING THE TRANSLATION CHAIN");
 		chainArray.push(
-			{ translated_Text: (preresult: string) => preresult },
-			translationPrompt,
+			{
+				input: (preresult: string) => preresult,
+			},
+			createTranslationTemplate(lowerCaseLanguage),
 			llm,
 			new StringOutputParser(),
 		);
@@ -147,13 +109,12 @@ export const POST = async (req: NextRequest) => {
 					chunks.push(chunk);
 				}
 
-				// Save the complete message after receiving all chunks
 				await db.message.create({
 					data: {
 						text: chunks.join(""),
 						isUserMessage: false,
 						fileId,
-						// userId,
+						userId: user.id,
 					},
 				});
 
@@ -165,6 +126,5 @@ export const POST = async (req: NextRequest) => {
 		},
 	});
 
-	// Return the readable stream as the response to the client
 	return new StreamingTextResponse(readableStream);
 };

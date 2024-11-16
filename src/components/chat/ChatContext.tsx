@@ -1,12 +1,15 @@
-import { ReactNode, createContext, useRef, useState } from "react";
-import { toast } from "sonner";
-import { useMutation } from "@tanstack/react-query";
 import { trpc } from "@/app/_trpc/client";
 import { INFINITE_QUERY_LIMIT } from "@/constant/infinite-query";
+import { useMutation } from "@tanstack/react-query";
+import { ReactNode, createContext, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
 type StreamResponse = {
 	addMessage: () => void;
 	message: string;
+	language: string;
+	setMessage: (message: string) => void;
+	setLanguage: (language: string) => void;
 	handleInputChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
 	isLoading: boolean;
 };
@@ -14,6 +17,9 @@ type StreamResponse = {
 export const ChatContext = createContext<StreamResponse>({
 	addMessage: () => {},
 	message: "",
+	language: "",
+	setMessage: () => {},
+	setLanguage: () => {},
 	handleInputChange: () => {},
 	isLoading: false,
 });
@@ -26,10 +32,21 @@ interface Props {
 export const ChatContextProvider = ({ fileId, children }: Props) => {
 	const [message, setMessage] = useState<string>("");
 	const [isLoading, setIsLoading] = useState<boolean>(false);
+	const [language, setLanguage] = useState<string>("english");
 
 	const utils = trpc.useUtils();
 
 	const backupMessage = useRef("");
+	const readerRef = useRef<ReadableStreamDefaultReader | null>(null);
+
+	useEffect(() => {
+		return () => {
+			// Cleanup stream reader on unmount
+			if (readerRef.current) {
+				readerRef.current.cancel();
+			}
+		};
+	}, []);
 
 	const { mutate: sendMessage } = useMutation({
 		mutationFn: async ({ message }: { message: string }) => {
@@ -38,12 +55,9 @@ export const ChatContextProvider = ({ fileId, children }: Props) => {
 				body: JSON.stringify({
 					fileId,
 					message,
+					language,
 				}),
 			});
-
-			if (!response.ok) {
-				throw new Error("Failed to send message");
-			}
 
 			return response.body;
 		},
@@ -106,6 +120,7 @@ export const ChatContextProvider = ({ fileId, children }: Props) => {
 			}
 
 			const reader = stream.getReader();
+			readerRef.current = reader;
 
 			const decoder = new TextDecoder();
 			let done = false;
@@ -167,7 +182,11 @@ export const ChatContextProvider = ({ fileId, children }: Props) => {
 			}
 		},
 
-		onError: (_, __, context) => {
+		onError: (error: any, __, context) => {
+			console.log(error);
+			toast.error(error.message, {
+				description: "There was an error sending the message",
+			});
 			setMessage(backupMessage.current);
 			utils.getFileMessages.setData({ fileId }, { messages: context?.previousMessages ?? [] });
 		},
@@ -178,21 +197,24 @@ export const ChatContextProvider = ({ fileId, children }: Props) => {
 		},
 	});
 
-	const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+	const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
 		setMessage(e.target.value);
-	};
+	}, []);
 
 	const addMessage = () => sendMessage({ message });
 
-	return (
-		<ChatContext.Provider
-			value={{
-				addMessage,
-				message,
-				handleInputChange,
-				isLoading,
-			}}>
-			{children}
-		</ChatContext.Provider>
+	const contextValue = useMemo(
+		() => ({
+			addMessage,
+			message,
+			setMessage,
+			language,
+			setLanguage,
+			handleInputChange,
+			isLoading,
+		}),
+		[message, language, isLoading, handleInputChange],
 	);
+
+	return <ChatContext.Provider value={contextValue}>{children}</ChatContext.Provider>;
 };
