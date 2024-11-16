@@ -1,4 +1,3 @@
-export const maxDuration = 60;
 import { db } from "@/db";
 import { embeddings } from "@/lib/embeddings";
 import index from "@/lib/pinecone";
@@ -11,6 +10,10 @@ import { ChatMistralAI } from "@langchain/mistralai";
 import { PineconeStore } from "@langchain/pinecone";
 import { StreamingTextResponse } from "ai";
 import { NextRequest } from "next/server";
+
+
+export const maxDuration = 60;
+
 
 const llm = new ChatMistralAI({
 	model: "mistral-large-latest",
