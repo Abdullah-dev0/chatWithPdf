@@ -8,7 +8,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { languages } from "@/constant/stripe";
+import { languages } from "@/constant";
 import { useContext } from "react";
 import { ChatContext } from "./ChatContext";
 

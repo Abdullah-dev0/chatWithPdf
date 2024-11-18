@@ -2,17 +2,15 @@
 
 import { trpc } from "@/app/_trpc/client";
 import { format } from "date-fns";
-import { Ghost, Loader2, MessageSquare, Plus, Trash } from "lucide-react";
+import { Ghost, MessageSquare, Plus } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
-import LoadingFiles from "./LoadingFiles";
-import { Button } from "./ui/button";
-import { toast } from "sonner";
 import DeleteFile from "./DeleteFile";
+import LoadingFiles from "./LoadingFiles";
 
 const FilesCard = () => {
 	const { data: files, isFetching } = trpc.getUserFiles.useQuery(undefined, {
 		staleTime: 1000 * 60 * 5,
+		refetchInterval: 1000 * 60 * 5,
 
 		retry(failureCount, error) {
 			if (error.message === "unauthorized") return false;

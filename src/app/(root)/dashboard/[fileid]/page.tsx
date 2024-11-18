@@ -1,10 +1,10 @@
 import ChatWrapper from "@/components/chat/ChatWrapper";
 import PdfRenderer from "@/components/PdfRenderer";
+import { Button } from "@/components/ui/button";
 import { db } from "@/db";
 import { auth } from "@clerk/nextjs/server";
 
-import { notFound } from "next/navigation";
-
+import Link from "next/link";
 interface PageProps {
 	params: {
 		fileid: string;
@@ -23,7 +23,20 @@ const Page = async ({ params }: PageProps) => {
 		},
 	});
 
-	if (!file) notFound();
+	if (!file)
+		return (
+			<div className="flex flex-col justify-center gap-4 items-center h-[calc(100vh-3.5rem)]">
+				<div className="flex flex-col items-center">
+					<h2 className="text-lg font-semibold">Oops! We couldn&apos;t find the file you&apos;re looking for.</h2>
+					<p className="text-gray-500">
+						It might have been moved or deleted. Please check your files or try again later.
+					</p>
+				</div>
+				<Link href="/dashboard">
+					<Button>Go to Dashboard</Button>
+				</Link>
+			</div>
+		);
 
 	return (
 		<div className="flex-1 justify-between flex flex-col h-[calc(100vh-3.5rem)]">

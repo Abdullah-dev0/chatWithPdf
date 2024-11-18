@@ -1,27 +1,17 @@
 "use client";
 import { trpc } from "@/app/_trpc/client";
-import { OurFileRouter } from "@/app/api/uploadthing/core";
 import { UploadDropzone as Drop } from "@uploadthing/react";
 import { useRouter } from "next/navigation";
-import { useRef, useState, RefObject } from "react";
+import { RefObject, useRef, useState } from "react";
+import { toast } from "sonner";
+import DeleteFile from "./DeleteFile";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "./ui/dialog";
-import { toast } from "sonner";
-import { Trash } from "lucide-react";
-import { Loader2 } from "lucide-react";
-import DeleteFile from "./DeleteFile";
 
-const UploadDropzone = ({
-	isSubscribed,
-	dialogTriggerRef,
-}: {
-	isSubscribed: boolean;
-	dialogTriggerRef: RefObject<HTMLButtonElement>;
-}) => {
+const UploadDropzone = ({ dialogTriggerRef }: { dialogTriggerRef: RefObject<HTMLButtonElement> }) => {
 	const router = useRouter();
 	const [isUploadComplete, setUploadIsComplete] = useState(false);
 
-	isSubscribed = true;
 	const utils = trpc.useUtils();
 
 	const { mutate: startPolling } = trpc.getFile.useMutation({
@@ -81,7 +71,7 @@ const UploadDropzone = ({
 	);
 };
 
-const UploadButton = ({ isSubscribed }: { isSubscribed: boolean }) => {
+const UploadButton = () => {
 	const [isOpen, setIsOpen] = useState<boolean>(false);
 	const dialogTriggerRef = useRef<HTMLButtonElement>(null);
 
@@ -99,7 +89,7 @@ const UploadButton = ({ isSubscribed }: { isSubscribed: boolean }) => {
 
 			<DialogContent>
 				<DialogTitle>Upload PDF</DialogTitle>
-				<UploadDropzone dialogTriggerRef={dialogTriggerRef} isSubscribed={isSubscribed} />
+				<UploadDropzone dialogTriggerRef={dialogTriggerRef} />
 			</DialogContent>
 		</Dialog>
 	);

@@ -41,7 +41,6 @@ export const ChatContextProvider = ({ fileId, children }: Props) => {
 
 	useEffect(() => {
 		return () => {
-			// Cleanup stream reader on unmount
 			if (readerRef.current) {
 				readerRef.current.cancel();
 			}

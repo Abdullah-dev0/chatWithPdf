@@ -28,17 +28,23 @@ export const POST = async (req: NextRequest) => {
 	try {
 		const content = await chain.invoke(text);
 
-		await db.message.update({
-			where: { id },
-			data: { text: content },
-		});
+		const response = NextResponse.json({ content });
 
-		return NextResponse.json({ content });
+		db.message
+			.update({
+				where: { id },
+				data: { text: content, updatedAt: new Date() },
+			})
+			.then(() => {
+				return;
+			})
+			.catch((err) => {
+				throw err;
+			});
+
+		return response;
 	} catch (error) {
 		console.error("Error processing request:", error);
-		return NextResponse.json(
-			{ error: "Failed to process request" },
-			{ status: 500 }
-		);
+		return NextResponse.json({ error: "Failed to process request" }, { status: 500 });
 	}
 };

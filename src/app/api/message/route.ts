@@ -11,9 +11,7 @@ import { PineconeStore } from "@langchain/pinecone";
 import { StreamingTextResponse } from "ai";
 import { NextRequest } from "next/server";
 
-
 export const maxDuration = 60;
-
 
 const llm = new ChatMistralAI({
 	model: "mistral-large-latest",
