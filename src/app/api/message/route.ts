@@ -10,6 +10,7 @@ import { ChatMistralAI } from "@langchain/mistralai";
 import { PineconeStore } from "@langchain/pinecone";
 import { StreamingTextResponse } from "ai";
 import { NextRequest } from "next/server";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 
 export const maxDuration = 60;
 
@@ -22,6 +23,12 @@ const llm = new ChatMistralAI({
 
 export const POST = async (req: NextRequest) => {
 	const body = await req.json();
+	// const llm = new ChatGoogleGenerativeAI({
+	// 	model: "gemini-1.5-flash",
+	// 	apiKey: process.env.GOOGLE_API_KEY!,
+	// 	maxRetries: 2,
+	// 	temperature: 0.3,
+	// });
 
 	const user = await currentUser();
 
@@ -54,7 +61,12 @@ export const POST = async (req: NextRequest) => {
 		namespace: file.id,
 	});
 
-	const retrievedDocs = await vectorStore.similaritySearch(message, 4);
+	const retrievedDocs = await vectorStore.similaritySearch(message, 3);
+
+	console.log(
+		"RETRIEVED DOCS",
+		retrievedDocs.map((doc) => doc.pageContent),
+	);
 
 	const prevMessages = await db.message.findMany({
 		where: { fileId },
@@ -75,7 +87,7 @@ export const POST = async (req: NextRequest) => {
 		{
 			context: () => context,
 			question: new RunnablePassthrough(),
-			conversation_history: async () => formattedPrevMessages,
+			previousMessages: () => formattedPrevMessages,
 		},
 		createChatTemplate(formattedPrevMessages),
 		llm,

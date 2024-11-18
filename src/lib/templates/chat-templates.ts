@@ -9,11 +9,15 @@ Translate the following text to ${language}. Only respond with the translation, 
 
 Text to translate: {input}`,
 		],
-		["human", `Translate the above text to ${language}. Only provide the translation, no explanations or original text.`],
+		[
+			"human",
+			`Translate the above text to ${language}. Only provide the translation, no explanations or original text.`,
+		],
 	]);
 
-export const createChatTemplate = (formattedPrevMessages: any[]) =>
-	ChatPromptTemplate.fromMessages([
+export const createChatTemplate = (formattedPrevMessages: any[]) => {
+	console.log("FORMATTED PREV MESSAGES", formattedPrevMessages);
+	return ChatPromptTemplate.fromMessages([
 		[
 			"system",
 			`You are an AI assistant specialized in analyzing documents and providing accurate information.
@@ -35,6 +39,7 @@ Previous Chat: ${formattedPrevMessages
 		],
 		["human", "{question}"],
 	]);
+};
 
 export const createParaphraseTemplate = () =>
 	ChatPromptTemplate.fromMessages([
