@@ -81,7 +81,9 @@ const Messages = ({ fileId }: MessagesProps) => {
 					<h3 className="font-semibold text-xl">You&apos;re all set!</h3>
 					<p className="text-zinc-500 text-sm">Ask your first question to get started.</p>
 					<div className=" flex flex-col justify-center gap-2">
-						<Button onClick={() => setMessage("Give me summery of this")}>Give me summery of this</Button>
+						<Button onClick={() => setMessage("What is the summary of this document?")}>
+							What is the summary of this document?
+						</Button>
 						<Button onClick={() => setMessage("Who is the author of this or who created this?")}>
 							Who is the author of this or who created this?
 						</Button>

@@ -15,9 +15,8 @@ Text to translate: {input}`,
 		],
 	]);
 
-export const createChatTemplate = (formattedPrevMessages: any[]) => {
-	console.log("FORMATTED PREV MESSAGES", formattedPrevMessages);
-	return ChatPromptTemplate.fromMessages([
+export const createChatTemplate = (formattedPrevMessages: any[]) =>
+	ChatPromptTemplate.fromMessages([
 		[
 			"system",
 			`You are an AI assistant specialized in analyzing documents and providing accurate information.
@@ -39,7 +38,6 @@ Previous Chat: ${formattedPrevMessages
 		],
 		["human", "{question}"],
 	]);
-};
 
 export const createParaphraseTemplate = () =>
 	ChatPromptTemplate.fromMessages([

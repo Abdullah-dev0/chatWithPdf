@@ -55,7 +55,10 @@ const UploadDropzone = ({ dialogTriggerRef }: { dialogTriggerRef: RefObject<HTML
 						startPolling({ key: res[0].key });
 					}}
 					onUploadError={(error: Error) => {
-						alert(`ERROR! ${error.message}`);
+						toast.error(`${error.message}`, {
+							description: "The uploaded file exceeds the maximum allowed size. Please reduce the file size and try again.",
+							duration: 9000,
+						});
 					}}
 					onChange={(files: any) => {
 						if (files.length > 1) {
