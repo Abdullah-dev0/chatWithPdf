@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { embeddings } from "@/lib/embeddings";
 import index from "@/lib/pinecone";
-import { createChatTemplate, createTranslationTemplate } from "@/lib/templates/chat-templates";
+import { chatTemplate, translationTemplate } from "@/lib/templates/chat-templates";
 import { SendMessageValidator } from "@/lib/validators/SendMessageValidator";
 import { currentUser } from "@clerk/nextjs/server";
 import { StringOutputParser } from "@langchain/core/output_parsers";
@@ -10,7 +10,6 @@ import { ChatMistralAI } from "@langchain/mistralai";
 import { PineconeStore } from "@langchain/pinecone";
 import { StreamingTextResponse } from "ai";
 import { NextRequest } from "next/server";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 
 export const maxDuration = 60;
 
@@ -63,11 +62,6 @@ export const POST = async (req: NextRequest) => {
 
 	const retrievedDocs = await vectorStore.similaritySearch(message, 3);
 
-	console.log(
-		"RETRIEVED DOCS",
-		retrievedDocs.map((doc) => doc.pageContent),
-	);
-
 	const prevMessages = await db.message.findMany({
 		where: { fileId },
 		orderBy: { createdAt: "asc" },
@@ -87,9 +81,15 @@ export const POST = async (req: NextRequest) => {
 		{
 			context: () => context,
 			question: new RunnablePassthrough(),
-			previousMessages: () => formattedPrevMessages,
+			chat_history: () =>
+				formattedPrevMessages
+					.map((message) => {
+						if (message.role === "user") return `User: ${message.content}\n`;
+						return `Assistant: ${message.content}\n`;
+					})
+					.join(""),
 		},
-		createChatTemplate(formattedPrevMessages),
+		chatTemplate,
 		llm,
 		new StringOutputParser(),
 	];
@@ -99,8 +99,9 @@ export const POST = async (req: NextRequest) => {
 		chainArray.push(
 			{
 				input: (preresult: string) => preresult,
+				language: () => lowerCaseLanguage,
 			},
-			createTranslationTemplate(lowerCaseLanguage),
+			translationTemplate,
 			llm,
 			new StringOutputParser(),
 		);

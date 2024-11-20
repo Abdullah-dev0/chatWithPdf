@@ -12,7 +12,6 @@ interface ChatInputProps {
 
 const ChatInput = ({ isDisabled }: ChatInputProps) => {
 	const { addMessage, handleInputChange, isLoading, message } = useContext(ChatContext);
-	console.log("ChatInput component rendered");
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 
 	return (

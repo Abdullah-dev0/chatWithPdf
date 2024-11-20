@@ -14,7 +14,6 @@ interface MessagesProps {
 
 const Messages = ({ fileId }: MessagesProps) => {
 	const { isLoading: isAiThinking, setMessage } = useContext(ChatContext);
-	console.log("Messages component rendered");
 
 	const { data, isLoading, fetchNextPage } = trpc.getFileMessages.useInfiniteQuery(
 		{

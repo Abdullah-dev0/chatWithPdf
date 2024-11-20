@@ -1,11 +1,10 @@
 import { db } from "@/db";
-import { createParaphraseTemplate } from "@/lib/templates/chat-templates";
+import { paraphraseTemplate } from "@/lib/templates/chat-templates";
 import { summarizeCheck } from "@/lib/validators/SendMessageValidator";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { RunnableSequence } from "@langchain/core/runnables";
 import { ChatMistralAI } from "@langchain/mistralai";
-import { NextResponse } from "next/server";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 export const POST = async (req: NextRequest) => {
 	const body = await req.json();
@@ -20,7 +19,7 @@ export const POST = async (req: NextRequest) => {
 
 	const chain = RunnableSequence.from([
 		{ text: (text: string) => text },
-		createParaphraseTemplate(),
+		paraphraseTemplate,
 		llm,
 		new StringOutputParser(),
 	]);

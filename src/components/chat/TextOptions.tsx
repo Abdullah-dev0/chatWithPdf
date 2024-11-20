@@ -6,9 +6,9 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { MessageLoadingStates, MessageUpdate } from "@/types/message";
 import { MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
-import { MessageLoadingStates, MessageUpdate } from "@/types/message";
 
 // Define a union type for all possible options
 type OptionType = MessageUpdate["type"];
@@ -32,16 +32,13 @@ export default function TextOptions({ text, id, onUpdateMessage, onLoadingStateC
 			});
 
 			if (!response.ok) throw new Error("Request failed");
-			
-			const result = await response.json();
 
+			const result = await response.json();
 
 			onUpdateMessage({
 				type,
 				content: result.content,
 			});
-
-			
 		} catch (error) {
 			toast.error(`There was an error while ${type}ing this text`, {
 				description: "Please try again later",
