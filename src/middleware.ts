@@ -3,6 +3,8 @@ import { db } from "./db";
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 
+const MAINTENANCE_MODE = "true";
+
 //by default, all routes are protected
 
 const isPublicRoute = createRouteMatcher([
@@ -14,18 +16,26 @@ const isPublicRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
-	if (!isPublicRoute(request)) {
-		await auth.protect();
+	// redirect theuser to maintenance page
+
+	if (MAINTENANCE_MODE === "true" && request.nextUrl.pathname !== "/maintenance") {
+		return NextResponse.redirect(new URL("/maintenance", request.url));
+
 	}
 
-	const user = await auth();
-	const url = request.nextUrl.clone();
-	url.pathname = "/dashboard";
-	if (user.userId && request.nextUrl.pathname === "/") {
-		return NextResponse.redirect(new URL("/dashboard", request.url));
-	}
+	// if (!isPublicRoute(request)) {
+	// 	await auth.protect();
+	// }
 
-	return NextResponse.next();
+	// const user = await auth();
+	// const url = request.nextUrl.clone();
+	// url.pathname = "/dashboard";
+
+	// if (user.userId && request.nextUrl.pathname === "/") {
+	// 	return NextResponse.redirect(new URL("/dashboard", request.url));
+	// }
+
+	// return NextResponse.next();
 });
 
 export const config = {

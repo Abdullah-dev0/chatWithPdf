@@ -10,7 +10,6 @@ import { MessageLoadingStates, MessageUpdate } from "@/types/message";
 import { MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
 
-// Define a union type for all possible options
 type OptionType = MessageUpdate["type"];
 
 interface TextOptionsProps {

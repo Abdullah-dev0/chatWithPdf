@@ -1,13 +1,12 @@
 import { db } from "@/db";
+import { embeddings } from "@/lib/embeddings";
+import index from "@/lib/pinecone";
 import { currentUser } from "@clerk/nextjs/server";
 import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
-import { MistralAIEmbeddings } from "@langchain/mistralai";
+import { PineconeStore } from "@langchain/pinecone";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { UploadThingError } from "uploadthing/server";
-import index from "@/lib/pinecone";
-import { PineconeStore } from "@langchain/pinecone";
-import { embeddings } from "@/lib/embeddings";
 
 const f = createUploadthing();
 

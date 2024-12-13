@@ -2,7 +2,6 @@ import Providers from "@/components/Providers";
 import { cn, constructMetadata } from "@/lib/utils";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Inter } from "next/font/google";
-import "react-loading-skeleton/dist/skeleton.css";
 import "simplebar-react/dist/simplebar.min.css";
 import "./globals.css";
 

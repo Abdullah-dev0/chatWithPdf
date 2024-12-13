@@ -9,6 +9,17 @@ Text to translate: {input}`,
 	["human", `Translate the above text to {language}. Only provide the translation, no explanations or original text.`],
 ]);
 
+export const getRelatedWords = ChatPromptTemplate.fromTemplate(`
+	You are an AI assistant specialized in analyzing text and extracting concise and relevant keywords. Your task is to:
+	
+	1. Analyze the provided text thoroughly.
+	2. Extract exactly 5 of the most relevant and significant keywords related to the content.
+	3. Ensure the keywords are unique, specific, and directly align with the provided context.
+	4. Return the output as a comma-separated by +  string.
+	
+	Context: {context}
+	`);
+
 export const chatTemplate = ChatPromptTemplate.fromMessages([
 	[
 		"system",

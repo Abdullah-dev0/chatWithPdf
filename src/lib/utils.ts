@@ -31,14 +31,40 @@ export function constructMetadata({
 		openGraph: {
 			title,
 			description,
+			type: "website",
+			url: "https://texttalk.techonline.live",
 			images: [
 				{
 					url: image,
+					width: 1200,
+					height: 630,
+					alt: title,
 				},
 			],
+			siteName: "TextTalk",
+			locale: "en_US",
 		},
-		icons,
+		twitter: {
+			card: "summary_large_image",
+			title,
+			description,
+			images: [image],
+			creator: "@Abdu_lah14",
+		},
+		icons: {
+			icon: icons,
+			shortcut: icons,
+			apple: icons,
+		},
 		themeColor: "#FFF",
+		manifest: "/manifest.json",
+		keywords: ["PDF chat", "document analysis", "AI chat", "text analysis"],
+		authors: [
+			{
+				name: "Abdullah",
+				url: "https://Abdullahtech.me",
+			},
+		],
 		...(noIndex && {
 			robots: {
 				index: false,

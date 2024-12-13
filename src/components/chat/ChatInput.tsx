@@ -1,18 +1,40 @@
+import { relatedPdf } from "@/actions/relatedpdf";
 import { Send } from "lucide-react";
 import { useContext, useRef } from "react";
+import { toast } from "sonner";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
 import { ChatContext } from "./ChatContext";
 import SelectLanguage from "./SelectLanguage";
-import { toast } from "sonner";
+import { useTransition } from "react";
+import { File } from "@prisma/client";
+import { trpc } from "@/app/_trpc/client";
 
 interface ChatInputProps {
 	isDisabled?: boolean;
+	file?: File;
 }
 
-const ChatInput = ({ isDisabled }: ChatInputProps) => {
+const ChatInput = ({ isDisabled, file }: ChatInputProps) => {
 	const { addMessage, handleInputChange, isLoading, message } = useContext(ChatContext);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
+	const [isPending, startTransition] = useTransition();
+
+	const utils = trpc.useUtils();
+
+	const relatedPdfHandler = () => {
+		startTransition(async () => {
+			try {
+				const response = await relatedPdf(file as File);
+				console.log(response);
+				if (response.success) {
+					await utils.getFileMessages.invalidate({ fileId: file?.id });
+				}
+			} catch (error) {
+				console.error("Error fetching related PDFs:", error);
+			}
+		});
+	};
 
 	return (
 		<div className="absolute bottom-0 left-0 w-full">
@@ -32,7 +54,6 @@ const ChatInput = ({ isDisabled }: ChatInputProps) => {
 										e.preventDefault();
 										if (message.trim() === "") return;
 										addMessage();
-
 										textareaRef.current?.focus();
 									}
 								}}
@@ -53,6 +74,9 @@ const ChatInput = ({ isDisabled }: ChatInputProps) => {
 									textareaRef.current?.focus();
 								}}>
 								<Send className="h-4 w-4" />
+							</Button>
+							<Button onClick={relatedPdfHandler} disabled={isPending}>
+								Related PDF
 							</Button>
 						</div>
 					</div>

@@ -9,9 +9,7 @@ import LoadingFiles from "./LoadingFiles";
 
 const FilesCard = () => {
 	const { data: files, isFetching } = trpc.getUserFiles.useQuery(undefined, {
-		staleTime: 1000 * 60 * 5,
-		refetchInterval: 1000 * 60 * 5,
-
+		staleTime: Infinity,
 		retry(failureCount, error) {
 			if (error.message === "unauthorized") return false;
 			return failureCount < 3;
