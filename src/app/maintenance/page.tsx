@@ -17,8 +17,8 @@ const Maintenance = () => {
           </h1>
           
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            We're performing scheduled maintenance to improve our services.
-            We'll be back online shortly.
+            We&apos;re performing scheduled maintenance to improve our services.
+            We&apos;ll be back online shortly.
           </p>
 
           {/* Progress Indicator */}

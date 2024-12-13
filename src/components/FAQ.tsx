@@ -23,14 +23,14 @@ export function FAQ() {
 				<AccordionItem value="item-3">
 					<AccordionTrigger className="text-white">What types of documents can I upload?</AccordionTrigger>
 					<AccordionContent className="text-gray-300">
-						Currently, we support PDF files. We're working on expanding our support to other document formats in the
+						Currently, we support PDF files. We&apos;re working on expanding our support to other document formats in the
 						future.
 					</AccordionContent>
 				</AccordionItem>
 				<AccordionItem value="item-4">
 					<AccordionTrigger className="text-white">How accurate are the AI-generated answers?</AccordionTrigger>
 					<AccordionContent className="text-gray-300">
-						Our AI model is highly accurate and constantly improving. However, as with any AI system, there's a small
+						Our AI model is highly accurate and constantly improving. However, as with any AI system, there&apos;s a small
 						margin for error. We recommend verifying important information directly in the source document.
 					</AccordionContent>
 				</AccordionItem>
