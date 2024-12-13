@@ -12,6 +12,7 @@ const isPublicRoute = createRouteMatcher([
 	"/sign-up(.*)",
 	"/",
 	"/api/webhooks(.*)",
+	"/maintenance",
 	"/api/uploadthing(.*)",
 ]);
 
@@ -20,8 +21,9 @@ export default clerkMiddleware(async (auth, request) => {
 
 	if (MAINTENANCE_MODE === "true" && request.nextUrl.pathname !== "/maintenance") {
 		return NextResponse.redirect(new URL("/maintenance", request.url));
-
 	}
+
+	return NextResponse.next();
 
 	// if (!isPublicRoute(request)) {
 	// 	await auth.protect();
